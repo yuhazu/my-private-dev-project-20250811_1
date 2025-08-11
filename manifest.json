@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "弭 -Yuhazu-",
+  "version": "0.0.4",
+  "description": "ページ上に音声読み上げUI「弭 -Yuhazu-」を挿入します。",
+  "icons": {
+    "128": "icons/icon128.png"
+  },
+  "permissions": [
+    "storage",
+    "scripting"
+  ],
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [ "content_style.css" ],
+      "matches": [ "http://*/*", "https://*/*" ]
+    }
+  ],
+  "action": {
+    "default_icon": "icons/icon128.png",
+    "default_title": "弭 -Yuhazu- を表示"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  }
+}
