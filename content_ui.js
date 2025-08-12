@@ -24,10 +24,11 @@ function createMySpeechUI(callbacks) {
     linkElem.setAttribute('href', chrome.runtime.getURL('content_style.css'));
     shadowRoot.appendChild(linkElem);
 
+    // ▼▼▼ [ここから修正] 簡易モードのHTML構造を変更 ▼▼▼
     const guiHtml = `
         <div id="wrapper">
             <div id="header">
-                <div id="header-left"> <span id="title">弭 -Yuhazu-</span> <button id="toggle-mode-btn" title="モード切替">⚙</button> </div>
+                <div id="header-left"> <button id="toggle-mode-btn" title="モード切替">⚙</button> </div>
                 <div id="playback-controls">
                     <button id="play-pause-btn" title="読み上げ開始" disabled>▶</button>
                     <button id="stop-btn" title="停止" disabled></button>
@@ -42,8 +43,10 @@ function createMySpeechUI(callbacks) {
                 </div>
                 <div id="header-buttons"> <button id="gui-close-btn" title="閉じる">×</button> </div>
             </div>
+            <!-- #simple-mode-top-buttons のdivを削除し、ボタンをフラットな構造にする -->
             <div id="simple-mode-controls" class="hidden">
-                <div id="simple-mode-top-buttons"> <button id="get-and-read-simple-btn" class="main-action-btn">T/▶︎</button> <button id="play-pause-simple-btn" class="main-action-btn" disabled>▶</button> </div>
+                <button id="get-and-read-simple-btn" class="main-action-btn">T/▶︎</button>
+                <button id="play-pause-simple-btn" class="main-action-btn" disabled>▶</button>
                 <button id="auto-read-simple-btn" class="main-action-btn">AUTO</button>
             </div>
             <div id="gui-body">
@@ -61,7 +64,11 @@ function createMySpeechUI(callbacks) {
                         <button id="trim-settings-btn" class="settings-action-btn">ノイズ対策</button>
                         <button id="separation-settings-btn" class="settings-action-btn">話者分離</button>
                     </div>
-                    <label>読み上げテキスト</label>
+
+                    <div class="section-divider">
+                        <span>読み上げテキスト</span>
+                    </div>
+
                     <div class="text-actions-group"> <button id="get-text-btn" class="main-action-btn">テキストを取得</button> <button id="clear-text-btn" class="main-action-btn">テキストをクリア</button> </div>
                     <div class="checkbox-group"> <input type="checkbox" id="get-all-text-checkbox"> <label for="get-all-text-checkbox">ページ内の一致する要素を全て取得</label> </div>
                     <div class="checkbox-group"> <input type="checkbox" id="scroll-to-highlight-checkbox"> <label for="scroll-to-highlight-checkbox">読み上げ部分に追従する</label> </div>
@@ -106,8 +113,8 @@ function createMySpeechUI(callbacks) {
                     <button class="popup-close-btn" title="閉じる">×</button>
                 </div>
                 <div class="popup-content">
-                    <div class="checkbox-group main-check"> <input type="checkbox" id="enable-trim-checkbox"> <label for="enable-trim-checkbox">末尾の指定文字列を除外する</label> </div>
-                    <div id="trim-content"> <div class="form-group"> <label for="trim-strings-textarea">除外する文字列（改行で複数指定）</label> <textarea id="trim-strings-textarea" rows="3"></textarea> </div> </div>
+                    <div class="checkbox-group main-check"> <input type="checkbox" id="enable-trim-checkbox"> <label for="enable-trim-checkbox">文末の指定文字列を読み上げない</label> </div>
+                    <div id="trim-content"> <div class="form-group"> <label for="trim-strings-textarea">指定文字列(改行で複数指定)</label> <textarea id="trim-strings-textarea" rows="3"></textarea> </div> </div>
                 </div>
             </div>
             <div id="separation-settings-popup" class="settings-popup hidden">
@@ -122,6 +129,7 @@ function createMySpeechUI(callbacks) {
             </div>
         </div>
     `;
+    // ▲▲▲ [修正はここまで] ▲▲▲
 
     const template = document.createElement('template');
     template.innerHTML = guiHtml;
@@ -188,31 +196,25 @@ function createMySpeechUI(callbacks) {
 
     dom.closeBtn.onclick = () => callbacks.onClose();
     dom.toggleModeBtn.onclick = () => callbacks.onToggleMode();
-    // ▼▼▼ [ここから修正] 折りたたみ機能のイベントリスナーを、新しいボタンのリスナーに置き換える ▼▼▼
-    // dom.collapsibles.forEach(header => { header.onclick = () => header.parentElement.classList.toggle('is-open'); }); // ← この行を削除
     
-    // 「音声パラメータ」の折りたたみ機能は残す
     const paramCollapsible = s.getElementById('param-settings-collapsible').querySelector('.collapsible-header');
     if(paramCollapsible) {
         paramCollapsible.onclick = () => paramCollapsible.parentElement.classList.toggle('is-open');
     }
 
-    // 新しい設定ボタンのイベントリスナー
     dom.textSettingsBtn.onclick = () => callbacks.onTogglePopup('textSettings');
     dom.speakerSettingsBtn.onclick = () => callbacks.onTogglePopup('speakerSettings');
     dom.trimSettingsBtn.onclick = () => callbacks.onTogglePopup('trimSettings');
     dom.separationSettingsBtn.onclick = () => callbacks.onTogglePopup('separationSettings');
 
-    // 全てのポップアップの閉じるボタンのイベントリスナー
     s.querySelectorAll('.settings-popup .popup-close-btn').forEach(btn => {
         const popup = btn.closest('.settings-popup');
         if (popup) {
-            const popupId = popup.id.replace('-popup', ''); // "text-settings" など
-            const camelCaseId = popupId.replace(/-(\w)/g, (match, p1) => p1.toUpperCase()); // "textSettings"
+            const popupId = popup.id.replace('-popup', '');
+            const camelCaseId = popupId.replace(/-(\w)/g, (match, p1) => p1.toUpperCase());
             btn.onclick = () => callbacks.onTogglePopup(camelCaseId, false);
         }
     });
-    // ▲▲▲ [修正はここまで] ▲▲▲
     
     dom.playPauseBtn.onclick = () => callbacks.onPlayPause();
     dom.stopBtn.onclick = () => callbacks.onStop();
@@ -291,7 +293,6 @@ function createMySpeechUI(callbacks) {
     // 3. UIの見た目を更新する関数群をAPIとして外に公開する
     // -----------------------------------------------------------------
     return {
-        // ▼▼▼ [ここから修正] 新しいAPI関数を追加 ▼▼▼
         getPopupElements: () => ({
             textSettings: { popup: dom.textSettingsPopup, button: dom.textSettingsBtn },
             speakerSettings: { popup: dom.speakerSettingsPopup, button: dom.speakerSettingsBtn },
@@ -325,7 +326,6 @@ function createMySpeechUI(callbacks) {
                 popup.style.left = `${Math.max(0, left)}px`;
             }
         },
-        // ▲▲▲ [修正はここまで] ▲▲▲
 
         getCursorDomInfo: () => {
             const selection = shadowRoot.getSelection();

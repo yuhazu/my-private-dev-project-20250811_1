@@ -34,15 +34,28 @@
 .server-status-indicator.error { background-color: #f39c12; }
 .engine-name { font-weight: bold; }
 .button-group { display: flex; gap: 8px; }
-#simple-mode-controls { display: flex; flex-direction: column; gap: 8px; padding: 12px; }
-#simple-mode-top-buttons { display: flex; gap: 8px; }
-#simple-mode-top-buttons button { font-size: 18px; flex-basis: 50%; }
+/* ▼▼▼ [ここから修正] 簡易モードのレイアウトをGridに変更 ▼▼▼ */
+#simple-mode-controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    padding: 12px;
+}
+#simple-mode-controls button {
+    font-size: 16px; /* すべてのボタンのフォントサイズを統一 */
+}
+/* #simple-mode-top-buttons { display: flex; gap: 8px; } */ /* ← このルールは不要なので削除 */
+/* #simple-mode-top-buttons button { font-size: 16px; flex-basis: 50%; } */ /* ← このルールは不要なので削除 */
+/* ▲▲▲ [修正はここまで] ▲▲▲ */
 button.main-action-btn { all: revert; flex-grow: 1; width: 100%; padding: 10px; border: none; border-radius: 5px; color: #fff; cursor: pointer; font-size: 14px; transition: background-color .2s ease; font-family: sans-serif;}
 button.small-btn { all: revert; padding: 5px 8px !important; font-size: 12px !important; flex-grow: 0 !important; color: white !important; border: none; border-radius: 4px; font-family: sans-serif;}
 #get-and-read-simple-btn { background-color: #16a085; }
 #get-and-read-simple-btn.is-stopping { background-color: #c0392b !important; }
 #play-pause-simple-btn { background-color: #2980b9; }
-#auto-read-simple-btn { background-color: #7f8c8d; }
+#auto-read-simple-btn {
+    background-color: #7f8c8d;
+    grid-column: 1 / 3; /* 2列にまたがるように設定 */
+}
 #auto-read-simple-btn.active { background-color: #27ae60; }
 button:disabled { background-color: #bdc3c7 !important; cursor: not-allowed; }
 #read-status { margin-top: 10px; padding: 8px; background-color: #f0f0f0; border-radius: 4px; min-height: 2.5em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 0; }
@@ -192,15 +205,12 @@ textarea { resize: vertical; }
     display: flex;
     align-items: center;
     justify-content: center;
-    background-color: #f0f0f0; /* 薄い灰色 */
-    color: #333; /* 太い黒 */
+    background-color: #f0f0f0;
+    color: #333;
     font-weight: bold;
     cursor: default;
 }
 
-/* ▼▼▼ ステップ2で追加するCSS ▼▼▼ */
-
-/* 設定ボタンのグループ */
 #settings-actions-group {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -208,7 +218,6 @@ textarea { resize: vertical; }
     margin-bottom: 15px;
 }
 
-/* 設定ボタンのスタイル */
 .settings-action-btn {
     all: revert;
     padding: 8px;
@@ -227,7 +236,6 @@ textarea { resize: vertical; }
     background-color: #e0e0e0;
 }
 
-/* 設定ポップアップの共通スタイル */
 .settings-popup {
     position: absolute;
     width: 340px;
@@ -241,7 +249,6 @@ textarea { resize: vertical; }
     flex-direction: column;
 }
 
-/* ポップアップのヘッダー */
 .settings-popup .popup-header {
     display: flex;
     justify-content: space-between;
@@ -255,7 +262,6 @@ textarea { resize: vertical; }
     flex-shrink: 0;
 }
 
-/* ポップアップの閉じるボタン */
 .settings-popup .popup-close-btn {
     all: revert;
     background: none;
@@ -271,8 +277,42 @@ textarea { resize: vertical; }
 }
 
 
-/* ポップアップのコンテンツエリア */
 .settings-popup .popup-content {
     padding: 15px;
     overflow-y: auto;
 }
+
+/* 「音声パラメータ」セクションのラベルを中央揃え */
+#param-settings-collapsible .collapsible-header > span:first-child {
+    flex-grow: 1;
+    text-align: center;
+    margin-left: 1em;
+}
+
+/* 区切り線コンテナのスタイル */
+.section-divider {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    margin: 0px 0px 15px 0px;
+}
+
+/* 線の部分（左） */
+.section-divider::before,
+/* 線の部分（右） */
+.section-divider::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px solid #ddd;
+}
+
+/* ▼▼▼ [ここから修正] 区切り線ラベルのスタイルを日本語用に調整 ▼▼▼ */
+/* 中央のラベルテキスト */
+.section-divider span {
+    padding: 0 10px;
+    font-size: 12px;
+    color: #999;
+    font-weight: normal;
+    /* letter-spacingとtext-transformを削除 */
+}
+/* ▲▲▲ [修正はここまで] ▲▲▲ */
