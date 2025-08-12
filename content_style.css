@@ -34,7 +34,6 @@
 .server-status-indicator.error { background-color: #f39c12; }
 .engine-name { font-weight: bold; }
 .button-group { display: flex; gap: 8px; }
-/* ▼▼▼ [ここから修正] 簡易モードのレイアウトをGridに変更 ▼▼▼ */
 #simple-mode-controls {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -42,11 +41,8 @@
     padding: 12px;
 }
 #simple-mode-controls button {
-    font-size: 16px; /* すべてのボタンのフォントサイズを統一 */
+    font-size: 16px;
 }
-/* #simple-mode-top-buttons { display: flex; gap: 8px; } */ /* ← このルールは不要なので削除 */
-/* #simple-mode-top-buttons button { font-size: 16px; flex-basis: 50%; } */ /* ← このルールは不要なので削除 */
-/* ▲▲▲ [修正はここまで] ▲▲▲ */
 button.main-action-btn { all: revert; flex-grow: 1; width: 100%; padding: 10px; border: none; border-radius: 5px; color: #fff; cursor: pointer; font-size: 14px; transition: background-color .2s ease; font-family: sans-serif;}
 button.small-btn { all: revert; padding: 5px 8px !important; font-size: 12px !important; flex-grow: 0 !important; color: white !important; border: none; border-radius: 4px; font-family: sans-serif;}
 #get-and-read-simple-btn { background-color: #16a085; }
@@ -54,7 +50,7 @@ button.small-btn { all: revert; padding: 5px 8px !important; font-size: 12px !im
 #play-pause-simple-btn { background-color: #2980b9; }
 #auto-read-simple-btn {
     background-color: #7f8c8d;
-    grid-column: 1 / 3; /* 2列にまたがるように設定 */
+    grid-column: 1 / 3;
 }
 #auto-read-simple-btn.active { background-color: #27ae60; }
 button:disabled { background-color: #bdc3c7 !important; cursor: not-allowed; }
@@ -108,18 +104,41 @@ textarea { resize: vertical; }
 .speaker-color-8 { color: #bcbd22; }
 .speaker-color-9 { color: #17becf; }
 
-/* 話者分離ルールのマーカー色用クラス */
-.marker-color-default { background-color: #ccc; }
-.marker-color-0 { background-color: #1f77b4; }
-.marker-color-1 { background-color: #ff7f0e; }
-.marker-color-2 { background-color: #2ca02c; }
-.marker-color-3 { background-color: #d62728; }
-.marker-color-4 { background-color: #9467bd; }
-.marker-color-5 { background-color: #8c564b; }
-.marker-color-6 { background-color: #e377c2; }
-.marker-color-7 { background-color: #7f7f7f; }
-.marker-color-8 { background-color: #bcbd22; }
-.marker-color-9 { background-color: #17becf; }
+/* ▼▼▼ [ここから修正] マーカー色のセレクタを強化 ▼▼▼ */
+/* 話者分離ルール 兼 アクセントバーのマーカー色 */
+#current-speaker-display .speaker-color-indicator.marker-color-default,
+.rule-color-marker.marker-color-default { background-color: #ccc; }
+
+#current-speaker-display .speaker-color-indicator.marker-color-0,
+.rule-color-marker.marker-color-0 { background-color: #1f77b4; }
+
+#current-speaker-display .speaker-color-indicator.marker-color-1,
+.rule-color-marker.marker-color-1 { background-color: #ff7f0e; }
+
+#current-speaker-display .speaker-color-indicator.marker-color-2,
+.rule-color-marker.marker-color-2 { background-color: #2ca02c; }
+
+#current-speaker-display .speaker-color-indicator.marker-color-3,
+.rule-color-marker.marker-color-3 { background-color: #d62728; }
+
+#current-speaker-display .speaker-color-indicator.marker-color-4,
+.rule-color-marker.marker-color-4 { background-color: #9467bd; }
+
+#current-speaker-display .speaker-color-indicator.marker-color-5,
+.rule-color-marker.marker-color-5 { background-color: #8c564b; }
+
+#current-speaker-display .speaker-color-indicator.marker-color-6,
+.rule-color-marker.marker-color-6 { background-color: #e377c2; }
+
+#current-speaker-display .speaker-color-indicator.marker-color-7,
+.rule-color-marker.marker-color-7 { background-color: #7f7f7f; }
+
+#current-speaker-display .speaker-color-indicator.marker-color-8,
+.rule-color-marker.marker-color-8 { background-color: #bcbd22; }
+
+#current-speaker-display .speaker-color-indicator.marker-color-9,
+.rule-color-marker.marker-color-9 { background-color: #17becf; }
+/* ▲▲▲ [修正はここまで] ▲▲▲ */
 
 /* 再生中のテキストをハイライトするスタイル */
 #text-editor mark.current-sentence {
@@ -182,12 +201,26 @@ textarea { resize: vertical; }
 }
 
 #current-speaker-display {
-    padding: 8px 12px;
+    display: flex;
+    align-items: center;
     background-color: #f0f0f0;
     border-radius: 4px;
     text-align: center;
     font-weight: bold;
     font-size: 13px;
+    overflow: hidden;
+}
+
+.speaker-color-indicator {
+    flex-shrink: 0;
+    width: 5px;
+    align-self: stretch;
+    background-color: #ccc;
+}
+
+.speaker-name-text {
+    flex-grow: 1;
+    padding: 8px 12px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -282,14 +315,12 @@ textarea { resize: vertical; }
     overflow-y: auto;
 }
 
-/* 「音声パラメータ」セクションのラベルを中央揃え */
 #param-settings-collapsible .collapsible-header > span:first-child {
     flex-grow: 1;
     text-align: center;
     margin-left: 1em;
 }
 
-/* 区切り線コンテナのスタイル */
 .section-divider {
     display: flex;
     align-items: center;
@@ -297,22 +328,16 @@ textarea { resize: vertical; }
     margin: 0px 0px 15px 0px;
 }
 
-/* 線の部分（左） */
 .section-divider::before,
-/* 線の部分（右） */
 .section-divider::after {
     content: '';
     flex: 1;
     border-bottom: 1px solid #ddd;
 }
 
-/* ▼▼▼ [ここから修正] 区切り線ラベルのスタイルを日本語用に調整 ▼▼▼ */
-/* 中央のラベルテキスト */
 .section-divider span {
     padding: 0 10px;
     font-size: 12px;
     color: #999;
     font-weight: normal;
-    /* letter-spacingとtext-transformを削除 */
 }
-/* ▲▲▲ [修正はここまで] ▲▲▲ */

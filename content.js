@@ -21,11 +21,7 @@
     let autoReadEnabled = false;
     let getAllTextEnabled = false;
     let isSimpleMode = false;
-    // ▼▼▼ [ここから修正] 状態変数を変更 ▼▼▼
-    // isSpeakerPopupOpen は不要になるので openPopupId に統合
-    // let isSpeakerPopupOpen = false; // ← この行を削除
-    let openPopupId = null; // 現在開いているポップアップのIDを管理 (例: 'textSettings', 'speaker')
-    // ▲▲▲ [修正はここまで] ▲▲▲
+    let openPopupId = null; 
 
     let uiState = 'stopped'; // 'stopped', 'playing', 'paused'
     const audioQueue = [];
@@ -476,6 +472,7 @@
                 checkServerStatus();
             }
         },
+        // ▼▼▼ [ここから修正] updateCurrentSpeakerDisplayの呼び出しを修正 ▼▼▼
         onSpeakerChange: (speakerId) => {
             currentSpeakerId = speakerId;
             const selectedSpeaker = speakerList.find(s => s.id === currentSpeakerId);
@@ -483,20 +480,20 @@
             if (selectedSpeaker) {
                 selectedEngineId = selectedSpeaker.engine;
                 ui.updateSpeakerInputs(getPureSpeakerName(selectedSpeaker), selectedSpeaker.id, selectedEngineId);
-                ui.updateCurrentSpeakerDisplay(getSpeakerDisplayName(selectedSpeaker));
+                // 必要な引数(speakerId, speakerList)をすべて渡すように変更
+                ui.updateCurrentSpeakerDisplay(getSpeakerDisplayName(selectedSpeaker), selectedSpeaker.id, speakerList);
             } else {
-                ui.updateCurrentSpeakerDisplay('---');
+                ui.updateCurrentSpeakerDisplay('---', null, speakerList);
             }
             
             chrome.runtime.sendMessage({ action: 'saveLastSpeaker', data: currentSpeakerId });
             ui.renderSpeakerOptions(speakerList, currentSpeakerId, getSpeakerDisplayName);
             callbacks.onTextChange();
         },
-        // ▼▼▼ [ここから修正] ポップアップ制御ロジックを共通化 ▼▼▼
+        // ▲▲▲ [修正はここまで] ▲▲▲
         onTogglePopup: (popupId, forceState) => {
             const shouldOpen = forceState === undefined ? openPopupId !== popupId : forceState;
             
-            // まず、現在開いているポップアップをすべて閉じる
             if (openPopupId) {
                 const elements = ui.getPopupElements();
                 const targetId = openPopupId === 'speakerPopup' ? 'speaker' : openPopupId;
@@ -512,14 +509,12 @@
             openPopupId = null;
             document.removeEventListener('mousedown', callbacks.onDocumentClick, true);
             
-            // 新しくポップアップを開く場合
             if (shouldOpen) {
                 openPopupId = popupId;
                 const elements = ui.getPopupElements();
-                const targetId = openPopupId; // popupId is already camelCase from ui
+                const targetId = openPopupId;
     
                 if (targetId === 'speaker') {
-                    // 既存のヘッダー話者選択ポップアップのロジック
                     ui.renderPopupSpeakerList(speakerList, currentSpeakerId, getSpeakerDisplayName);
                     const buttonRect = ui.getSpeakerButtonElement().getBoundingClientRect();
                     const spaceBelow = window.innerHeight - buttonRect.bottom;
@@ -528,7 +523,6 @@
                     ui.setPopupMaxHeight(maxHeight + 'px');
                     ui.toggleSpeakerPopup(true);
                 } else if (elements[targetId]) {
-                    // 新しい設定ポップアップのロジック
                     ui.toggleSettingsPopup(elements[targetId].popup, elements[targetId].button, true);
                 }
                 document.addEventListener('mousedown', callbacks.onDocumentClick, true);
@@ -552,10 +546,8 @@
             }
         },
         onSpeakerPopupToggle: (forceState) => {
-            // 新しい onTogglePopup に処理を移譲
             callbacks.onTogglePopup('speaker', forceState);
         },
-        // ▲▲▲ [修正はここまで] ▲▲▲
         onEngineSelect: (engine) => {
             selectedEngineId = engine;
             const { name, id } = ui.getNewSpeakerInfo();

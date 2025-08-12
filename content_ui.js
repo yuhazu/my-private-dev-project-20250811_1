@@ -24,7 +24,7 @@ function createMySpeechUI(callbacks) {
     linkElem.setAttribute('href', chrome.runtime.getURL('content_style.css'));
     shadowRoot.appendChild(linkElem);
 
-    // ▼▼▼ [ここから修正] 簡易モードのHTML構造を変更 ▼▼▼
+    // ▼▼▼ [ここから修正] #current-speaker-display のHTML構造を変更 ▼▼▼
     const guiHtml = `
         <div id="wrapper">
             <div id="header">
@@ -43,7 +43,6 @@ function createMySpeechUI(callbacks) {
                 </div>
                 <div id="header-buttons"> <button id="gui-close-btn" title="閉じる">×</button> </div>
             </div>
-            <!-- #simple-mode-top-buttons のdivを削除し、ボタンをフラットな構造にする -->
             <div id="simple-mode-controls" class="hidden">
                 <button id="get-and-read-simple-btn" class="main-action-btn">T/▶︎</button>
                 <button id="play-pause-simple-btn" class="main-action-btn" disabled>▶</button>
@@ -51,7 +50,10 @@ function createMySpeechUI(callbacks) {
             </div>
             <div id="gui-body">
                 <div class="gui-section">
-                    <div id="current-speaker-display">---</div>
+                    <div id="current-speaker-display">
+                        <span class="speaker-color-indicator"></span>
+                        <span class="speaker-name-text">---</span>
+                    </div>
                 </div>
                 <div class="collapsible gui-section" id="param-settings-collapsible">
                     <div class="collapsible-header"> <span>音声パラメータ</span> <span class="toggle-icon">▶</span> </div>
@@ -137,6 +139,7 @@ function createMySpeechUI(callbacks) {
     document.body.appendChild(guiHost);
 
     const s = shadowRoot;
+    // ▼▼▼ [ここから修正] domオブジェクトに話者表示関連の要素を追加 ▼▼▼
     const dom = {
         wrapper: s.getElementById('wrapper'), header: s.getElementById('header'),
         closeBtn: s.getElementById('gui-close-btn'), toggleModeBtn: s.getElementById('toggle-mode-btn'),
@@ -169,6 +172,8 @@ function createMySpeechUI(callbacks) {
         readStatus: s.getElementById('read-status'),
         parametersGrid: s.getElementById('parameters-grid'),
         currentSpeakerDisplay: s.getElementById('current-speaker-display'),
+        speakerColorIndicator: s.querySelector('#current-speaker-display .speaker-color-indicator'),
+        speakerNameText: s.querySelector('#current-speaker-display .speaker-name-text'),
         enableSeparationCheckbox: s.getElementById('enable-separation-checkbox'), readTriggerCheckbox: s.getElementById('read-trigger-checkbox'),
         separationContent: s.getElementById('separation-content'),
         rulesList: s.getElementById('separation-rules-list'), ruleTriggerInput: s.getElementById('rule-trigger-input'),
@@ -184,6 +189,7 @@ function createMySpeechUI(callbacks) {
         trimSettingsPopup: s.getElementById('trim-settings-popup'),
         separationSettingsPopup: s.getElementById('separation-settings-popup'),
     };
+    // ▲▲▲ [修正はここまで] ▲▲▲
 
     // -----------------------------------------------------------------
     // 2. イベントリスナーを定義し、コールバックを呼び出す
@@ -292,6 +298,12 @@ function createMySpeechUI(callbacks) {
     // -----------------------------------------------------------------
     // 3. UIの見た目を更新する関数群をAPIとして外に公開する
     // -----------------------------------------------------------------
+    // ▼▼▼ [ここから修正] updateCurrentSpeakerDisplayの内部ロジックを変更 ▼▼▼
+    const getSpeakerColorClassName = (speakerId, speakerList) => {
+        const speakerIndex = speakerList.findIndex(s => s.id === speakerId);
+        return speakerIndex === -1 ? 'marker-color-default' : `marker-color-${speakerIndex % COLOR_PALETTE.length}`;
+    };
+    
     return {
         getPopupElements: () => ({
             textSettings: { popup: dom.textSettingsPopup, button: dom.textSettingsBtn },
@@ -480,14 +492,14 @@ function createMySpeechUI(callbacks) {
         renderSeparationSettings: (settings, speakerList, getSpeakerDisplayName) => {
             dom.enableSeparationCheckbox.checked = settings.enabled;
             dom.readTriggerCheckbox.checked = settings.readTriggerEnabled;
-            const getMarkerColorClassName = (speakerId) => { const speakerIndex = speakerList.findIndex(s => s.id === speakerId); return speakerIndex === -1 ? 'marker-color-default' : `marker-color-${speakerIndex % COLOR_PALETTE.length}`; };
+            
             dom.ruleSpeakerSelect.innerHTML = speakerList.map(s => `<option value="${s.id}">${getSpeakerDisplayName(s)}</option>`).join('');
             dom.rulesList.innerHTML = '';
             if (settings.rules) {
                 settings.rules.forEach(rule => {
                     const speaker = speakerList.find(s => s.id === rule.speakerId);
                     const li = document.createElement('li');
-                    li.innerHTML = `<span><span class="rule-color-marker ${getMarkerColorClassName(rule.speakerId)}"></span>「${rule.trigger}」 → <strong>${speaker ? getSpeakerDisplayName(speaker) : '不明な話者'}</strong></span><button class="small-btn rule-delete-btn" data-trigger="${rule.trigger}">削除</button>`;
+                    li.innerHTML = `<span><span class="rule-color-marker ${getSpeakerColorClassName(rule.speakerId, speakerList)}"></span>「${rule.trigger}」 → <strong>${speaker ? getSpeakerDisplayName(speaker) : '不明な話者'}</strong></span><button class="small-btn rule-delete-btn" data-trigger="${rule.trigger}">削除</button>`;
                     dom.rulesList.appendChild(li);
                 });
             }
@@ -613,9 +625,15 @@ function createMySpeechUI(callbacks) {
         setPopupMaxHeight: (height) => {
             dom.speakerSelectPopup.style.maxHeight = height;
         },
-        updateCurrentSpeakerDisplay: (speakerName) => {
-            dom.currentSpeakerDisplay.textContent = speakerName;
+        updateCurrentSpeakerDisplay: (speakerName, speakerId, speakerList) => {
+            dom.speakerNameText.textContent = speakerName;
+            dom.speakerColorIndicator.className = 'speaker-color-indicator'; // Reset classes
+            if (speakerId && speakerList) {
+                const colorClass = getSpeakerColorClassName(speakerId, speakerList);
+                dom.speakerColorIndicator.classList.add(colorClass);
+            }
         },
+        // ▲▲▲ [修正はここまで] ▲▲▲
 
         blurEditor: () => {
             if (shadowRoot.activeElement === dom.textEditor) {
