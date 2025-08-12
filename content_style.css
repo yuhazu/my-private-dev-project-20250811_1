@@ -180,7 +180,6 @@ textarea { resize: vertical; }
     text-overflow: ellipsis;
 }
 
-/* ▼▼▼ ここから追加・修正 ▼▼▼ */
 .server-status-btn {
     all: revert;
     flex-grow: 1;
@@ -197,4 +196,83 @@ textarea { resize: vertical; }
     color: #333; /* 太い黒 */
     font-weight: bold;
     cursor: default;
+}
+
+/* ▼▼▼ ステップ2で追加するCSS ▼▼▼ */
+
+/* 設定ボタンのグループ */
+#settings-actions-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 15px;
+}
+
+/* 設定ボタンのスタイル */
+.settings-action-btn {
+    all: revert;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    color: #333;
+    background-color: #f0f0f0;
+    cursor: pointer;
+    font-size: 13px;
+    font-family: sans-serif;
+    text-align: center;
+    transition: background-color .2s ease;
+}
+
+.settings-action-btn:hover {
+    background-color: #e0e0e0;
+}
+
+/* 設定ポップアップの共通スタイル */
+.settings-popup {
+    position: absolute;
+    width: 340px;
+    max-height: 450px;
+    background-color: #fff;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ポップアップのヘッダー */
+.settings-popup .popup-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background-color: #f7f7f7;
+    border-bottom: 1px solid #ddd;
+    font-size: 13px;
+    font-weight: bold;
+    cursor: default;
+    flex-shrink: 0;
+}
+
+/* ポップアップの閉じるボタン */
+.settings-popup .popup-close-btn {
+    all: revert;
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    color: #999;
+    line-height: 1;
+    padding: 2px;
+}
+.settings-popup .popup-close-btn:hover {
+    color: #000;
+}
+
+
+/* ポップアップのコンテンツエリア */
+.settings-popup .popup-content {
+    padding: 15px;
+    overflow-y: auto;
 }

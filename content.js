@@ -21,7 +21,11 @@
     let autoReadEnabled = false;
     let getAllTextEnabled = false;
     let isSimpleMode = false;
-    let isSpeakerPopupOpen = false;
+    // ▼▼▼ [ここから修正] 状態変数を変更 ▼▼▼
+    // isSpeakerPopupOpen は不要になるので openPopupId に統合
+    // let isSpeakerPopupOpen = false; // ← この行を削除
+    let openPopupId = null; // 現在開いているポップアップのIDを管理 (例: 'textSettings', 'speaker')
+    // ▲▲▲ [修正はここまで] ▲▲▲
 
     let uiState = 'stopped'; // 'stopped', 'playing', 'paused'
     const audioQueue = [];
@@ -361,7 +365,6 @@
                 chrome.runtime.sendMessage({ action: 'processAndGenerateAudioFromList', payload: finalPayload, params });
             }
         },
-        // ▼▼▼ [ここから修正] onStop関数から audioPlayer.src = "" を削除 ▼▼▼
         onStop: (isCompletion = false) => {
             if (uiState === 'stopped' && !isCompletion) return;
             
@@ -371,8 +374,7 @@
             chrome.runtime.sendMessage({ action: 'stopReading' });
             
             audioPlayer.pause();
-            // audioPlayer.src = ""; // この行を削除
-
+            
             if (currentObjectUrl) {
                 URL.revokeObjectURL(currentObjectUrl);
                 currentObjectUrl = null;
@@ -395,7 +397,6 @@
                 callbacks.onMutation();
             }
         },
-        // ▲▲▲ [修正はここまで] ▲▲▲
         onAutoReadToggle: () => {
             autoReadEnabled = !autoReadEnabled;
             ui.updateAutoReadButtonsUI(autoReadEnabled);
@@ -491,34 +492,70 @@
             ui.renderSpeakerOptions(speakerList, currentSpeakerId, getSpeakerDisplayName);
             callbacks.onTextChange();
         },
-        onSpeakerPopupToggle: (forceState) => {
-            isSpeakerPopupOpen = (forceState === undefined) ? !isSpeakerPopupOpen : forceState;
+        // ▼▼▼ [ここから修正] ポップアップ制御ロジックを共通化 ▼▼▼
+        onTogglePopup: (popupId, forceState) => {
+            const shouldOpen = forceState === undefined ? openPopupId !== popupId : forceState;
             
-            if (isSpeakerPopupOpen) {
-                ui.renderPopupSpeakerList(speakerList, currentSpeakerId, getSpeakerDisplayName);
-                
-                const buttonRect = ui.getSpeakerButtonElement().getBoundingClientRect();
-                const spaceBelow = window.innerHeight - buttonRect.bottom;
-                const margin = 20;
-                const maxHeight = Math.max(100, spaceBelow - margin);
-                ui.setPopupMaxHeight(maxHeight + 'px');
-
-                document.addEventListener('mousedown', callbacks.onDocumentClick);
-            } else {
-                document.removeEventListener('mousedown', callbacks.onDocumentClick);
+            // まず、現在開いているポップアップをすべて閉じる
+            if (openPopupId) {
+                const elements = ui.getPopupElements();
+                const targetId = openPopupId === 'speakerPopup' ? 'speaker' : openPopupId;
+                if (elements[targetId]) {
+                    if (targetId === 'speaker') {
+                        ui.toggleSpeakerPopup(false);
+                    } else {
+                        ui.toggleSettingsPopup(elements[targetId].popup, elements[targetId].button, false);
+                    }
+                }
             }
+    
+            openPopupId = null;
+            document.removeEventListener('mousedown', callbacks.onDocumentClick, true);
             
-            ui.toggleSpeakerPopup(isSpeakerPopupOpen);
+            // 新しくポップアップを開く場合
+            if (shouldOpen) {
+                openPopupId = popupId;
+                const elements = ui.getPopupElements();
+                const targetId = openPopupId; // popupId is already camelCase from ui
+    
+                if (targetId === 'speaker') {
+                    // 既存のヘッダー話者選択ポップアップのロジック
+                    ui.renderPopupSpeakerList(speakerList, currentSpeakerId, getSpeakerDisplayName);
+                    const buttonRect = ui.getSpeakerButtonElement().getBoundingClientRect();
+                    const spaceBelow = window.innerHeight - buttonRect.bottom;
+                    const margin = 20;
+                    const maxHeight = Math.max(100, spaceBelow - margin);
+                    ui.setPopupMaxHeight(maxHeight + 'px');
+                    ui.toggleSpeakerPopup(true);
+                } else if (elements[targetId]) {
+                    // 新しい設定ポップアップのロジック
+                    ui.toggleSettingsPopup(elements[targetId].popup, elements[targetId].button, true);
+                }
+                document.addEventListener('mousedown', callbacks.onDocumentClick, true);
+            }
         },
+        
         onDocumentClick: (event) => {
-            const popup = ui.getPopupElement();
-            const button = ui.getSpeakerButtonElement();
-            const path = event.composedPath();
-
-            if (isSpeakerPopupOpen && !path.includes(popup) && !path.includes(button)) {
-                callbacks.onSpeakerPopupToggle(false);
+            if (!openPopupId) return;
+    
+            const elements = ui.getPopupElements();
+            const targetId = openPopupId;
+            
+            const popup = elements[targetId]?.popup;
+            const button = elements[targetId]?.button;
+    
+            if (popup && button) {
+                const path = event.composedPath();
+                if (!path.includes(popup) && !path.includes(button)) {
+                    callbacks.onTogglePopup(openPopupId, false);
+                }
             }
         },
+        onSpeakerPopupToggle: (forceState) => {
+            // 新しい onTogglePopup に処理を移譲
+            callbacks.onTogglePopup('speaker', forceState);
+        },
+        // ▲▲▲ [修正はここまで] ▲▲▲
         onEngineSelect: (engine) => {
             selectedEngineId = engine;
             const { name, id } = ui.getNewSpeakerInfo();
@@ -733,21 +770,18 @@
         }
     };
 
-    // ▼▼▼ [ここから修正] onerrorハンドラを修正し、意図した停止に伴うエラーは無視する ▼▼▼
     audioPlayer.onerror = (e) => {
         isReading = false;
         if (currentObjectUrl) {
             URL.revokeObjectURL(currentObjectUrl);
             currentObjectUrl = null;
         }
-        // 意図しない停止（再生中や一時停止中）の場合のみ、エラーとして処理・表示する
         if (uiState !== 'stopped') {
              console.error("Audio Player Error:", e);
              ui.updateStatus("エラー: 再生に失敗");
              callbacks.onStop();
         }
     };
-    // ▲▲▲ [修正はここまで] ▲▲▲
     
     async function checkServerStatus() {
         try {
