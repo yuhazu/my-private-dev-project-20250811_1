@@ -1,13 +1,11 @@
 // background.js (追従スクロールの設定保存/読み込み機能を追加)
 
-// ▼▼▼ [ここから修正] defaults.jsから初期設定をインポート ▼▼▼
 import { 
     DEFAULT_SPEAKERS, 
     DEFAULT_SELECTORS, 
     DEFAULT_TRIM_SETTINGS,
     DEFAULT_SEPARATION_SETTINGS
 } from './defaults.js';
-// ▲▲▲ [修正はここまで] ▲▲▲
 
 // --- グローバル状態（バックグラウンド） ---
 let currentJobId = null;
@@ -100,7 +98,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         case 'checkServerStatus': checkAllServerStatus().then(sendResponse); break;
         case 'fetchAndSyncSpeakers': (async () => { try { const apiSpeakers = await fetchAllSpeakersFromEngines(); if (apiSpeakers.length === 0) { throw new Error("起動中の音声合成エンジンから話者情報を取得できませんでした。"); } const storageResult = await chrome.storage.local.get([STORAGE_KEY_SPEAKERS]); let existingSpeakers = storageResult[STORAGE_KEY_SPEAKERS] || []; const existingSpeakersMap = new Map(existingSpeakers.map(s => [`${s.id}@${s.engine}`, s])); apiSpeakers.forEach(apiSpeaker => { const key = `${apiSpeaker.id}@${apiSpeaker.engine}`; if (!existingSpeakersMap.has(key)) { existingSpeakers.push(apiSpeaker); } }); await chrome.storage.local.set({ [STORAGE_KEY_SPEAKERS]: existingSpeakers }); sendResponse(existingSpeakers); } catch (error) { console.error("Error during fetchAndSyncSpeakers:", error); sendResponse({ error: error.message }); } })(); break;
         
-        // ▼▼▼ [ここから修正] 初期値をインポートした定数に置き換える ▼▼▼
         case 'loadSpeakers': 
             chrome.storage.local.get([STORAGE_KEY_SPEAKERS], (result) => { 
                 if (result[STORAGE_KEY_SPEAKERS]) { 
@@ -137,7 +134,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 }
             });
             break;
-        // ▲▲▲ [修正はここまで] ▲▲▲
 
         case 'saveSelectors': chrome.storage.local.set({ [STORAGE_KEY_SELECTORS]: request.data }, () => sendResponse({ success: true })); break;
         
@@ -159,7 +155,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         case 'saveLastSelector': chrome.storage.local.set({ [STORAGE_KEY_LAST_SELECTOR]: request.data }); isAsync = false; break;
         case 'saveLastParams': chrome.storage.local.set({ [STORAGE_KEY_LAST_PARAMS]: request.data }); isAsync = false; break;
         
-        // ▼▼▼ [ここから修正] 初期値をインポートした定数に置き換える ▼▼▼
         case 'loadSeparationSettings': 
             chrome.storage.local.get([STORAGE_KEY_SEPARATION], (result) => { 
                 if (result[STORAGE_KEY_SEPARATION]) { 
@@ -181,7 +176,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 }
             });
             break;
-        // ▲▲▲ [修正はここまで] ▲▲▲
 
         case 'saveTrimSettings': chrome.storage.local.set({ [STORAGE_KEY_TRIM_SETTINGS]: request.data }, () => { sendResponse({ success: true }); }); break;
         case 'saveRubyProcessingSetting': chrome.storage.local.set({ [STORAGE_KEY_RUBY_PROCESSING]: request.data }); isAsync = false; break;
@@ -228,7 +222,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                         const isLast = (i === payload.length - 1);
 
                         if (trimStrings.length > 0) {
+                            // 1. まず末尾の文字を削除する
                             item.text = trimEndChars(item.text, trimStrings);
+
+                            // ▼▼▼ [ここから修正] 2. 次に、テキスト全体が除外文字そのものでないかチェックする ▼▼▼
+                            if (trimStrings.includes(item.text.trim())) {
+                                item.text = ""; // テキストが除外文字そのものだった場合、空にする
+                            }
+                            // ▲▲▲ [修正はここまで] ▲▲▲
                         }
 
                         if (!item.text.trim()) {
