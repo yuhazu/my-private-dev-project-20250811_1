@@ -14,7 +14,7 @@ export const DEFAULT_SPEAKERS = [
  * 一般的なウェブサイトの読み上げ対象を初期設定として提供します。
  */
 export const DEFAULT_SELECTORS = [
-    { name: "ChatGPT", selector: "div.flex.max-w-full.flex-col.grow" },
+    { name: "ChatGPT", selector: "div.markdown" },
     { name: "Gemini", selector: ".model-response-text" },
     { name: "Perplexity", selector: ".prose" },
     { name: "Google AI Studio", selector: "div.model-prompt-container" },
