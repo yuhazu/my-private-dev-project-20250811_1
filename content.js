@@ -22,8 +22,8 @@
     let isStreamingMode = false;
     let getAllTextEnabled = false;
     let isSimpleMode = false;
-    let openPopupId = null; 
-    let activePopupTrigger = null; 
+    let openPopupId = null;
+    let activePopupTrigger = null;
     let streamingWaitTime = 0.3;
 
     let uiState = 'stopped'; // 'stopped', 'playing', 'paused'
@@ -31,20 +31,20 @@
     let isReading = false;
     let isLastItemReceived = false;
     const audioPlayer = new Audio();
-    
+
     let currentObjectUrl = null;
 
     let mutationObserver = null;
     let lastAutoReadText = "";
-    let autoReadFinalityTimer = null; 
+    let autoReadFinalityTimer = null;
     let isProcessingAutoRead = false;
 
     let currentPlaybackQueue = [];
     let currentPlaybackIndex = 0;
     let originalTextForPlayback = "";
-    let chunksForHighlight = []; 
+    let chunksForHighlight = [];
     let isUpdatingInternally = false;
-    
+
     let engineSettings = {};
 
     // -----------------------------------------------------------------
@@ -62,7 +62,7 @@
         if (newT.length > oldT.length && newT.startsWith(oldT)) {
             return newT.substring(oldT.length).trim();
         }
-        
+
         return null;
     }
 
@@ -171,7 +171,7 @@
 
         for (const span of allSpans) {
             const isTrigger = span.dataset.isTrigger === 'true';
-            
+
             if (span.contains(cursorDomInfo.textNode)) {
                 let cursorOffsetInSpan = 0;
                 const walker = document.createTreeWalker(span, NodeFilter.SHOW_TEXT);
@@ -205,15 +205,15 @@
                                 currentPlaybackQueue[startIndex].text = currentPlaybackQueue[startIndex].text.substring(relativeOffset);
                             }
                         }
-                        break; 
+                        break;
                     }
-                    
+
                     if (isPlayable && fullSentence.trim()) {
                         playableSentenceCount++;
                     }
                     sentenceStartPosInSpan = sentenceEndPosInSpan;
                 }
-                break; 
+                break;
             } else {
                 const sentences = span.textContent.split(/([。！？\n])/g);
                 for (let i = 0; i < sentences.length; i += 2) {
@@ -230,7 +230,7 @@
                 }
             }
         }
-        
+
         if (startIndex === -1) {
             startIndex = playableSentenceCount;
         }
@@ -284,18 +284,18 @@
                 targetNode = document.body;
             }
         }
-        
+
         console.log("弭 -Yuhazu-: MutationObserver is now targeting:", targetNode);
-        
+
         const observeConfig = { childList: true, characterData: true, subtree: true };
         mutationObserver = new MutationObserver(callbacks.onMutation);
         mutationObserver.observe(targetNode, observeConfig);
     }
-    
-    function stopObserver() { 
-        if (mutationObserver) { 
-            mutationObserver.disconnect(); 
-            mutationObserver = null; 
+
+    function stopObserver() {
+        if (mutationObserver) {
+            mutationObserver.disconnect();
+            mutationObserver = null;
         }
         clearTimeout(autoReadFinalityTimer);
         isProcessingAutoRead = false;
@@ -342,10 +342,10 @@
                 callbacks.updateAllButtons();
                 return;
             }
-            
+
             if (uiState === 'stopped') {
                 resetPlaybackState();
-                
+
                 originalTextForPlayback = ui.getTextFromEditor();
                 const rulesToApply = separationSettings.enabled ? separationSettings.rules : [];
                 chunksForHighlight = generateHighlightChunks(originalTextForPlayback, currentSpeakerId, rulesToApply);
@@ -382,7 +382,7 @@
 
                 const cursorDomInfo = ui.getCursorDomInfo();
                 currentPlaybackIndex = _calculateStartIndex(cursorDomInfo);
-                
+
                 const finalPayload = currentPlaybackQueue.slice(currentPlaybackIndex);
                 if (finalPayload.length === 0) {
                     callbacks.onStop(true);
@@ -395,9 +395,9 @@
                 uiState = 'playing';
                 ui.updateStatus("ステータス: 読み上げ準備中...");
                 callbacks.updateAllButtons();
-                
+
                 ui.redrawTextEditorWithHighlight(chunksForHighlight, currentPlaybackIndex, scrollToHighlightEnabled, currentSpeakerId, speakerList);
-                
+
                 const params = ui.getCurrentParams();
                 chrome.runtime.sendMessage({ action: 'processAndGenerateAudioFromList', payload: finalPayload, params });
             }
@@ -407,24 +407,24 @@
 
             const wasPlaying = uiState === 'playing';
             const wasPaused = uiState === 'paused';
-            
+
             uiState = 'stopped';
             isReading = false;
             isProcessingAutoRead = false;
 
             clearTimeout(autoReadFinalityTimer);
             chrome.runtime.sendMessage({ action: 'stopReading' });
-            
+
             audioPlayer.pause();
-            
+
             if (currentObjectUrl) {
                 URL.revokeObjectURL(currentObjectUrl);
                 currentObjectUrl = null;
             }
-            
+
             audioQueue.length = 0;
             isLastItemReceived = false;
-            
+
             resetPlaybackState();
             ui.updateStatus(isCompletion ? "ステータス: 全ての再生が完了しました。" : "ステータス: 停止しました。");
             callbacks.updateAllButtons();
@@ -434,17 +434,24 @@
                 if (latestText && latestText.trim() !== lastAutoReadText) {
                     callbacks.onMutation();
                 }
+            // ▼▼▼ [ここから変更] ▼▼▼
             } else if (!isCompletion && autoReadEnabled) {
+                // ユーザーが手動で停止し、かつ自動再生が有効だった場合、自動再生をオフにする
+                autoReadEnabled = false;
+                isStreamingMode = false; // ストリーミングモードも強制的にオフ
+                stopObserver(); // 監視を停止. [1]
                 lastAutoReadText = "";
+                ui.updateAutoReadButtonsUI(autoReadEnabled, isStreamingMode);
             }
+            // ▲▲▲ [変更はここまで] ▲▲▲
         },
         onAutoReadToggle: () => {
             autoReadEnabled = !autoReadEnabled;
             if (autoReadEnabled) {
                 startObserver();
-                callbacks.onMutation(); 
+                callbacks.onMutation();
             } else {
-                isStreamingMode = false; 
+                isStreamingMode = false;
                 stopObserver();
                 lastAutoReadText = "";
             }
@@ -504,7 +511,7 @@
             ui.renderSelectorOptions(selectorList, newSelector.selector);
             callbacks.onSelectorChange(newSelector.selector, newSelector.name);
         },
-        
+
         onResetSelectors: async () => {
             try {
                 const updatedSelectors = await chrome.runtime.sendMessage({ action: 'resetSelectors' });
@@ -512,9 +519,9 @@
                     selectorList = updatedSelectors;
                     const currentSelectorValue = ui.getSelectorValue();
                     const selectedOption = selectorList.find(s => s.selector === currentSelectorValue);
-                    
+
                     ui.renderSelectorOptions(selectorList, currentSelectorValue);
-                    
+
                     if (selectedOption) {
                         callbacks.onSelectorChange(selectedOption.selector, selectedOption.name);
                     } else {
@@ -558,7 +565,7 @@
         onSpeakerChange: (speakerId) => {
             currentSpeakerId = speakerId;
             const selectedSpeaker = speakerList.find(s => s.id === currentSpeakerId);
-            
+
             if (selectedSpeaker) {
                 selectedEngineId = selectedSpeaker.engine;
                 ui.updateSpeakerInputs(getPureSpeakerName(selectedSpeaker), selectedSpeaker.id, selectedEngineId);
@@ -566,14 +573,14 @@
             } else {
                 ui.updateCurrentSpeakerDisplay('---', null, speakerList);
             }
-            
+
             chrome.runtime.sendMessage({ action: 'saveLastSpeaker', data: currentSpeakerId });
             ui.renderSpeakerOptions(speakerList, currentSpeakerId, getSpeakerDisplayName);
             callbacks.onTextChange();
         },
         onTogglePopup: (popupId, forceState, triggerElement) => {
             const shouldOpen = forceState === undefined ? (openPopupId !== popupId || triggerElement !== activePopupTrigger) : forceState;
-            
+
             if (openPopupId) {
                 const elements = ui.getPopupElements();
                 const target = elements[openPopupId];
@@ -581,17 +588,17 @@
                     ui.toggleAndPositionPopup(target.popup, activePopupTrigger, false);
                 }
             }
-    
+
             openPopupId = null;
             activePopupTrigger = null;
             document.removeEventListener('mousedown', callbacks.onDocumentClick, true);
-            
+
             if (shouldOpen) {
                 openPopupId = popupId;
                 activePopupTrigger = triggerElement;
                 const elements = ui.getPopupElements();
                 const target = elements[popupId];
-    
+
                 if (target && target.popup && activePopupTrigger) {
                     if (popupId === 'speaker') {
                         ui.renderPopupSpeakerList(speakerList, currentSpeakerId, getSpeakerDisplayName);
@@ -601,17 +608,17 @@
                 }
             }
         },
-        
+
         onDocumentClick: (event) => {
             if (!openPopupId) return;
-    
+
             const elements = ui.getPopupElements();
             const target = elements[openPopupId];
-            
+
             if (target && target.popup) {
                 const path = event.composedPath();
                 const isClickInsidePopup = path.includes(target.popup);
-    
+
                 const triggerButtons = Array.isArray(target.buttons) ? target.buttons : [target.button];
                 const isClickInsideTrigger = triggerButtons.some(btn => btn && path.includes(btn));
 
@@ -664,7 +671,7 @@
             const value = ui.getStreamingWaitTimeSliderValue();
             streamingWaitTime = parseFloat(value);
             ui.setStreamingWaitTime(streamingWaitTime);
-            
+
             if (isFinal) {
                 chrome.runtime.sendMessage({ action: 'saveStreamingWaitTime', data: streamingWaitTime });
             }
@@ -702,7 +709,7 @@
         },
         onGetText: () => {
             const selector = ui.getSelectorValue();
-            lastAutoReadText = ""; 
+            lastAutoReadText = "";
             const combinedText = extractTextFromElements(selector, getAllTextEnabled);
             if (combinedText === null) {
                 ui.alert("指定されたCSSセレクタに一致する要素が見つかりませんでした。");
@@ -731,7 +738,7 @@
             const text = ui.getTextFromEditor();
             const rulesToApply = separationSettings.enabled ? separationSettings.rules : [];
             const chunks = generateHighlightChunks(text, currentSpeakerId, rulesToApply);
-            
+
             isUpdatingInternally = true;
             ui.updateHighlight(chunks, currentSpeakerId, speakerList);
             isUpdatingInternally = false;
@@ -744,29 +751,27 @@
                 ui.updateStatus("ステータス: 停止しました。クリック位置から再生待機中です。");
             }
         },
-        // ▼▼▼ [ここから変更] ▼▼▼
         onMutation: () => {
-            if (!autoReadEnabled || uiState !== 'stopped') {
-                return;
-            }
+            if (!autoReadEnabled || uiState !== 'stopped') return;
 
             if (isStreamingMode) {
-                if (isProcessingAutoRead) {
-                    return;
-                }
+                if (isProcessingAutoRead) return;
                 isProcessingAutoRead = true;
                 const waitTime = streamingWaitTime * 1000;
                 autoReadFinalityTimer = setTimeout(callbacks.processAutoRead, waitTime);
             } else {
                 clearTimeout(autoReadFinalityTimer);
-                isProcessingAutoRead = true;
-                const waitTime = 1500;
-                autoReadFinalityTimer = setTimeout(callbacks.processAutoRead, waitTime);
+                autoReadFinalityTimer = setTimeout(callbacks.processAutoRead, 1500);
             }
         },
         processAutoRead: () => {
             const currentText = extractTextFromElements(ui.getSelectorValue(), false);
             const currentTextTrimmed = currentText ? currentText.trim() : "";
+
+            if (!currentTextTrimmed && isStreamingMode) {
+                isProcessingAutoRead = false;
+                return;
+            }
 
             if (isStreamingMode) {
                 const diffText = getTextDiff(lastAutoReadText, currentTextTrimmed);
@@ -782,19 +787,20 @@
                     setTimeout(() => callbacks.onPlayPause(), 50);
                 } else {
                     isProcessingAutoRead = false;
+                    const latestText = extractTextFromElements(ui.getSelectorValue(), false);
+                    if (latestText && latestText.trim() !== lastAutoReadText) {
+                        callbacks.onMutation();
+                    }
                 }
-            } else {
+            } else { // 通常モード
                 if (currentTextTrimmed && currentTextTrimmed !== lastAutoReadText) {
                     lastAutoReadText = currentTextTrimmed;
                     ui.setTextInEditor(currentTextTrimmed);
                     callbacks.onTextChange();
                     setTimeout(() => callbacks.onPlayPause(), 50);
-                } else {
-                     isProcessingAutoRead = false;
                 }
             }
         },
-        // ▲▲▲ [変更はここまで] ▲▲▲
         updateAllButtons: () => {
             const hasText = ui.getTextFromEditor().trim().length > 0;
             const isRunning = ui.isServerRunning();
@@ -813,19 +819,19 @@
     // -----------------------------------------------------------------
     // 5. 内部ロジック (Internal Logic) - UI依存
     // -----------------------------------------------------------------
-    
+
     function resetPlaybackState() {
         currentPlaybackQueue = [];
         currentPlaybackIndex = 0;
         originalTextForPlayback = "";
-        chunksForHighlight = []; 
+        chunksForHighlight = [];
         const text = ui.getTextFromEditor();
         const rulesToApply = separationSettings.enabled ? separationSettings.rules : [];
         const chunks = generateHighlightChunks(text, currentSpeakerId, rulesToApply);
         ui.updateHighlight(chunks, currentSpeakerId, speakerList);
         ui.blurEditor();
     }
-    
+
     async function playNextInQueue() {
         if (audioQueue.length === 0) {
             if (isLastItemReceived) {
@@ -842,9 +848,9 @@
 
         const item = audioQueue.shift();
         ui.updateStatus(`再生中: ${currentPlaybackQueue[currentPlaybackIndex]?.text || ''}`);
-        
+
         ui.redrawTextEditorWithHighlight(chunksForHighlight, currentPlaybackIndex, scrollToHighlightEnabled, currentSpeakerId, speakerList);
-        
+
         try {
             if (currentObjectUrl) {
                 URL.revokeObjectURL(currentObjectUrl);
@@ -891,7 +897,7 @@
              callbacks.onStop();
         }
     };
-    
+
     async function checkServerStatus() {
         try {
             const results = await chrome.runtime.sendMessage({ action: 'checkServerStatus' });
@@ -946,13 +952,13 @@
         try {
             await chrome.runtime.sendMessage({ action: 'getEngineSettings' });
             const lastSettings = await chrome.runtime.sendMessage({ action: 'loadLastSettings' });
-            
+
             speakerList = await chrome.runtime.sendMessage({ action: 'loadSpeakers' });
             if (speakerList && !speakerList.error) {
                 const lastSpeakerId = lastSettings['my-speech-gui-last-speaker'] || (speakerList[0] ? speakerList[0].id : null);
                 callbacks.onSpeakerChange(lastSpeakerId);
             } else { speakerList = []; }
-            
+
             selectorList = await chrome.runtime.sendMessage({ action: 'loadSelectors' });
             if (selectorList && !selectorList.error) {
                 const lastSelector = lastSettings['my-speech-gui-last-selector'];
@@ -961,13 +967,13 @@
                 ui.renderSelectorOptions(selectorList, initialSelector);
                 callbacks.onSelectorChange(initialSelector, initialSelectorName);
             } else { selectorList = []; }
-            
+
             separationSettings = await chrome.runtime.sendMessage({ action: 'loadSeparationSettings' });
             if (separationSettings) ui.renderSeparationSettings(separationSettings, speakerList, getSpeakerDisplayName);
-            
+
             trimSettings = await chrome.runtime.sendMessage({ action: 'loadTrimSettings' });
             if (trimSettings) ui.renderTrimSettings(trimSettings);
-            
+
             rubyProcessingEnabled = lastSettings['my-speech-gui-ruby-processing'] || false;
             getAllTextEnabled = lastSettings['my-speech-gui-get-all-text'] || false;
             scrollToHighlightEnabled = lastSettings['my-speech-gui-scroll-to-highlight'] || false;
@@ -975,9 +981,9 @@
 
             isSimpleMode = lastSettings['my-speech-gui-is-simple-mode'] || false;
             if(isSimpleMode) ui.toggleMode(true);
-            
+
             ui.createParameterSliders(lastSettings['my-speech-gui-last-params']);
-            
+
             streamingWaitTime = await chrome.runtime.sendMessage({ action: 'loadStreamingWaitTime' });
             ui.setStreamingWaitTime(streamingWaitTime);
 
@@ -988,22 +994,22 @@
             callbacks.updateAllButtons();
         }
     }
-    
+
     if (!window.mySpeechExtensionListenerAttached) {
         chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             if (window.mySpeechExtensionInstance) {
-                 if (message.action === 'toggleUI') window.mySpeechExtensionInstance.toggleVisibility(); 
+                 if (message.action === 'toggleUI') window.mySpeechExtensionInstance.toggleVisibility();
                  else window.mySpeechExtensionInstance.handleBackgroundMessage(message);
             }
         });
         window.mySpeechExtensionListenerAttached = true;
     }
-    
+
     window.mySpeechExtensionInstance = {
         toggleVisibility: () => ui.toggleVisibility(),
         handleBackgroundMessage: handleBackgroundMessage,
     };
-    
+
     init();
 
 })();
