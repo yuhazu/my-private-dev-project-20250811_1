@@ -2,7 +2,7 @@
 
 <img src="./screenshots/main-img.png" alt="弭 -Yuhazu- 動作デモ" width="800"/>
 
-**Webページ上のテキストを、ローカルPCで起動した音声合成ソフト（VOICEVOX, Aivis Speech）と連携して読み上げるChrome拡張機能です。** AIチャット（ChatGPTなど）の応答を主な対象としつつ、Web小説の読み上げにも対応しています。
+**Webページ上のテキストを、ローカルPCで起動した音声合成ソフト（VOICEVOX, AivisSpeech）と連携して読み上げるChrome拡張機能です。** AIチャット（ChatGPTなど）の応答を主な対象としつつ、Web小説の読み上げにも対応しています。
 
 ## 主な機能
 
