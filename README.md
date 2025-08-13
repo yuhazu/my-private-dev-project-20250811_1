@@ -8,7 +8,7 @@
 
 - **対応音声合成ソフト**
     *   [VOICEVOX](https://voicevox.hiroshiba.jp/)
-    *   [Aivis Speech](https://aivis-project.com/)
+    *   [AivisSpeech](https://aivis-project.com/)
 - **自動読み上げ**
     - ヘッダーの「AUTO」ボタンを有効にすると、ページコンテンツの更新を検知し、テキストの追記が完了したタイミングで自動的に読み上げを開始します。
 - **ストリーミングモード ⚡**
@@ -147,4 +147,4 @@ Webページの構成が変わりテキストを取得できなくなった際�
 
 ### ライセンス
 
-このプロジェクトは [MITライセンス](https://opensource.org/licenses/MIT) の下で公開されています。
+[MITライセンス](https://opensource.org/licenses/MIT) の下で公開されています。
