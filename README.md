@@ -4,6 +4,11 @@
 
 **Webページ上のテキストを、ローカルPCで起動した音声合成ソフト（VOICEVOX, AivisSpeech）と連携して読み上げるChrome拡張機能です。** AIチャット（ChatGPTなど）の応答を主な対象としつつ、Web小説の読み上げにも対応しています。
 
+## 利用規約
+ 音声合成ソフトを使用する際は、事前に必ず利用規約をご確認ください。
+   *   [VOICEVOX利用規約](https://voicevox.hiroshiba.jp/term/)
+   *   [Aivis Project利用規約](https://hub.aivis-project.com/terms-of-service)
+
 ## 主な機能
 
 - **対応音声合成ソフト**
