@@ -24,7 +24,6 @@ function createMySpeechUI(callbacks) {
     linkElem.setAttribute('href', chrome.runtime.getURL('content_style.css'));
     shadowRoot.appendChild(linkElem);
 
-    // ▼▼▼ [ここから修正] #current-speaker-display のHTML構造を変更 ▼▼▼
     const guiHtml = `
         <div id="wrapper">
             <div id="header">
@@ -33,13 +32,8 @@ function createMySpeechUI(callbacks) {
                     <button id="play-pause-btn" title="読み上げ開始" disabled>▶</button>
                     <button id="stop-btn" title="停止" disabled></button>
                     <button id="auto-read-btn" title="自動読み上げ ON/OFF">AUTO</button>
+                    <button id="streaming-mode-btn" title="ストリーミングモード ON/OFF">⚡</button>
                     <button id="speaker-popup-btn" title="話者を選択">話者</button>
-                    <div id="speaker-select-popup" class="hidden">
-                        <div class="popup-header">
-                            <span>話者を選択</span>
-                        </div>
-                        <ul id="popup-speaker-list"></ul>
-                    </div>
                 </div>
                 <div id="header-buttons"> <button id="gui-close-btn" title="閉じる">×</button> </div>
             </div>
@@ -66,11 +60,9 @@ function createMySpeechUI(callbacks) {
                         <button id="trim-settings-btn" class="settings-action-btn">ノイズ対策</button>
                         <button id="separation-settings-btn" class="settings-action-btn">話者分離</button>
                     </div>
-
                     <div class="section-divider">
                         <span>読み上げテキスト</span>
                     </div>
-
                     <div class="text-actions-group"> <button id="get-text-btn" class="main-action-btn">テキストを取得</button> <button id="clear-text-btn" class="main-action-btn">テキストをクリア</button> </div>
                     <div class="checkbox-group"> <input type="checkbox" id="get-all-text-checkbox"> <label for="get-all-text-checkbox">ページ内の一致する要素を全て取得</label> </div>
                     <div class="checkbox-group"> <input type="checkbox" id="scroll-to-highlight-checkbox"> <label for="scroll-to-highlight-checkbox">読み上げ部分に追従する</label> </div>
@@ -79,59 +71,78 @@ function createMySpeechUI(callbacks) {
                     <div id="server-status-container"></div>
                 </div>
             </div>
+        </div>
 
-            <div id="text-settings-popup" class="settings-popup hidden">
-                <div class="popup-header">
-                    <span>テキスト取得設定</span>
-                    <button class="popup-close-btn" title="閉じる">×</button>
-                </div>
-                <div class="popup-content">
-                    <div class="form-group"> <label for="selector-select">取得対象</label> <select id="selector-select"></select> </div>
-                    <div class="form-group"> <label for="selector-name-input">登録名</label> <input type="text" id="selector-name-input" placeholder="例: AIチャットの返信"> </div>
-                    <div class="form-group"> <label for="selector-css-input">CSSセレクタ</label> <input type="text" id="selector-css-input" placeholder="例: .message.model .message-content"> </div>
-                    <div id="selector-actions"> <button id="add-selector-btn" class="small-btn">追加/更新</button> <button id="delete-selector-btn" class="small-btn">選択中を削除</button> </div>
-                    <hr style="border: none; border-top: 1px solid #eee; margin: 15px 0;">
-                    <div class="checkbox-group"> <input type="checkbox" id="ruby-processing-checkbox"> <label for="ruby-processing-checkbox">ルビを読みに変換する (小説サイト向け)</label> </div>
-                </div>
+        <div id="speaker-select-popup" class="hidden">
+            <div class="popup-header">
+                <span>話者を選択</span>
             </div>
-            <div id="speaker-settings-popup" class="settings-popup hidden">
-                <div class="popup-header">
-                    <span>話者設定</span>
-                    <button class="popup-close-btn" title="閉じる">×</button>
-                </div>
-                <div class="popup-content">
-                    <div class="form-group"> <button id="check-speakers-btn" class="small-btn">話者リストを更新</button> </div>
-                    <hr style="border: none; border-top: 1px solid #eee; margin: 10px 0 15px 0;">
-                    <div class="form-group"> <label for="speaker-select">話者を選択</label> <select id="speaker-select"></select> </div>
-                    <div class="form-group"> <label for="speaker-name-input">登録名</label> <input type="text" id="speaker-name-input"> </div>
-                    <div class="form-group"> <label for="speaker-id-input">話者ID</label> <input type="text" id="speaker-id-input"> </div>
-                    <div class="form-group"> <div class="engine-selector"> <button id="engine-btn-aivis">Aivis</button> <button id="engine-btn-voicevox">VOICEVOX</button> </div> </div>
-                    <div id="speaker-actions"> <button id="add-speaker-btn" class="small-btn">手動更新</button> <button id="delete-speaker-btn" class="small-btn">選択中を削除</button> </div>
-                </div>
+            <ul id="popup-speaker-list"></ul>
+        </div>
+        <div id="text-settings-popup" class="settings-popup hidden">
+            <div class="popup-header">
+                <span>テキスト取得設定</span>
+                <button class="popup-close-btn" title="閉じる">×</button>
             </div>
-            <div id="trim-settings-popup" class="settings-popup hidden">
-                <div class="popup-header">
-                    <span>ノイズ対策</span>
-                    <button class="popup-close-btn" title="閉じる">×</button>
+            <!-- ▼▼▼ [ここから変更] ▼▼▼ -->
+            <div class="popup-content">
+                <div class="form-group param-item">
+                    <label for="streaming-wait-time-slider">ストリーミング待機時間 (秒)</label>
+                    <div>
+                        <input type="range" id="streaming-wait-time-slider" min="0.1" max="3.0" step="0.1" value="0.3">
+                        <span id="val-streaming-wait-time-slider" style="font-size: 12px; width: 35px; text-align: right;">0.30</span>
+                    </div>
                 </div>
-                <div class="popup-content">
-                    <div class="checkbox-group main-check"> <input type="checkbox" id="enable-trim-checkbox"> <label for="enable-trim-checkbox">文末の指定文字列を読み上げない</label> </div>
-                    <div id="trim-content"> <div class="form-group"> <label for="trim-strings-textarea">指定文字列(改行で複数指定)</label> <textarea id="trim-strings-textarea" rows="3"></textarea> </div> </div>
+                <hr style="border: none; border-top: 1px solid #ddd; margin: 10px 0;">
+                <div class="form-group"> <label for="selector-select">取得対象</label> <select id="selector-select"></select> </div>
+                <div class="form-group"> <label for="selector-name-input">登録名</label> <input type="text" id="selector-name-input" placeholder="例: AIチャットの返信"> </div>
+                <div class="form-group"> <label for="selector-css-input">CSSセレクタ</label> <input type="text" id="selector-css-input" placeholder="例: .message.model .message-content"> </div>
+                <div id="selector-actions">
+                    <button id="add-selector-btn" class="small-btn">追加/更新</button>
+                    <button id="delete-selector-btn" class="small-btn">選択中を削除</button>
+                    <button id="reset-selectors-btn" class="small-btn">初期設定で上書き</button>
                 </div>
+                <hr style="border: none; border-top: 1px solid #eee; margin: 15px 0;">
+                <div class="checkbox-group"> <input type="checkbox" id="ruby-processing-checkbox"> <label for="ruby-processing-checkbox">ルビを読みに変換する (小説サイト向け)</label> </div>
             </div>
-            <div id="separation-settings-popup" class="settings-popup hidden">
-                <div class="popup-header">
-                    <span>話者分離</span>
-                    <button class="popup-close-btn" title="閉じる">×</button>
-                </div>
-                <div class="popup-content">
-                    <div class="checkbox-group main-check"> <input type="checkbox" id="enable-separation-checkbox"> <label for="enable-separation-checkbox">話者分離を有効にする</label> </div>
-                    <div id="separation-content"> <div class="checkbox-group"> <input type="checkbox" id="read-trigger-checkbox"> <label for="read-trigger-checkbox">トリガーを地の文で読み上げる</label> </div> <label>ルール管理</label> <ul id="separation-rules-list"></ul> <div class="form-group"> <label for="rule-trigger-input">トリガー文字列</label> <input type="text" id="rule-trigger-input" placeholder="例: アリス：「"> </div> <div class="form-group"> <label for="rule-speaker-select">話者</label> <select id="rule-speaker-select"></select> </div> <button id="add-separation-rule-btn" class="small-btn">ルールを追加</button> </div>
-                </div>
+            <!-- ▲▲▲ [変更はここまで] ▲▲▲ -->
+        </div>
+        <div id="speaker-settings-popup" class="settings-popup hidden">
+            <div class="popup-header">
+                <span>話者設定</span>
+                <button class="popup-close-btn" title="閉じる">×</button>
+            </div>
+            <div class="popup-content">
+                <div class="form-group"> <button id="check-speakers-btn" class="small-btn">話者リストを更新</button> </div>
+                <hr style="border: none; border-top: 1px solid #eee; margin: 10px 0 15px 0;">
+                <div class="form-group"> <label for="speaker-select">話者を選択</label> <select id="speaker-select"></select> </div>
+                <div class="form-group"> <label for="speaker-name-input">登録名</label> <input type="text" id="speaker-name-input"> </div>
+                <div class="form-group"> <label for="speaker-id-input">話者ID</label> <input type="text" id="speaker-id-input"> </div>
+                <div class="form-group"> <div class="engine-selector"> <button id="engine-btn-aivis">Aivis</button> <button id="engine-btn-voicevox">VOICEVOX</button> </div> </div>
+                <div id="speaker-actions"> <button id="add-speaker-btn" class="small-btn">手動更新</button> <button id="delete-speaker-btn" class="small-btn">選択中を削除</button> </div>
+            </div>
+        </div>
+        <div id="trim-settings-popup" class="settings-popup hidden">
+            <div class="popup-header">
+                <span>ノイズ対策</span>
+                <button class="popup-close-btn" title="閉じる">×</button>
+            </div>
+            <div class="popup-content">
+                <div class="checkbox-group main-check"> <input type="checkbox" id="enable-trim-checkbox"> <label for="enable-trim-checkbox">文末の指定文字列を読み上げない</label> </div>
+                <div id="trim-content"> <div class="form-group"> <label for="trim-strings-textarea">指定文字列(改行で複数指定)</label> <textarea id="trim-strings-textarea" rows="3"></textarea> </div> </div>
+            </div>
+        </div>
+        <div id="separation-settings-popup" class="settings-popup hidden">
+            <div class="popup-header">
+                <span>話者分離</span>
+                <button class="popup-close-btn" title="閉じる">×</button>
+            </div>
+            <div class="popup-content">
+                <div class="checkbox-group main-check"> <input type="checkbox" id="enable-separation-checkbox"> <label for="enable-separation-checkbox">話者分離を有効にする</label> </div>
+                <div id="separation-content"> <div class="checkbox-group"> <input type="checkbox" id="read-trigger-checkbox"> <label for="read-trigger-checkbox">トリガーを地の文で読み上げる</label> </div> <label>ルール管理</label> <ul id="separation-rules-list"></ul> <div class="form-group"> <label for="rule-trigger-input">トリガー文字列</label> <input type="text" id="rule-trigger-input" placeholder="例: アリス：「"> </div> <div class="form-group"> <label for="rule-speaker-select">話者</label> <select id="rule-speaker-select"></select> </div> <button id="add-separation-rule-btn" class="small-btn">ルールを追加</button> </div>
             </div>
         </div>
     `;
-    // ▲▲▲ [修正はここまで] ▲▲▲
 
     const template = document.createElement('template');
     template.innerHTML = guiHtml;
@@ -139,7 +150,6 @@ function createMySpeechUI(callbacks) {
     document.body.appendChild(guiHost);
 
     const s = shadowRoot;
-    // ▼▼▼ [ここから修正] domオブジェクトに話者表示関連の要素を追加 ▼▼▼
     const dom = {
         wrapper: s.getElementById('wrapper'), header: s.getElementById('header'),
         closeBtn: s.getElementById('gui-close-btn'), toggleModeBtn: s.getElementById('toggle-mode-btn'),
@@ -157,6 +167,7 @@ function createMySpeechUI(callbacks) {
         selectorSelect: s.getElementById('selector-select'), selectorNameInput: s.getElementById('selector-name-input'),
         selectorCssInput: s.getElementById('selector-css-input'), addSelectorBtn: s.getElementById('add-selector-btn'),
         deleteSelectorBtn: s.getElementById('delete-selector-btn'),
+        resetSelectorsBtn: s.getElementById('reset-selectors-btn'),
         getTextBtn: s.getElementById('get-text-btn'),
         clearTextBtn: s.getElementById('clear-text-btn'),
         getAllTextCheckbox: s.getElementById('get-all-text-checkbox'),
@@ -166,6 +177,7 @@ function createMySpeechUI(callbacks) {
         playbackControls: s.getElementById('playback-controls'),
         playPauseBtn: s.getElementById('play-pause-btn'), stopBtn: s.getElementById('stop-btn'),
         autoReadBtn: s.getElementById('auto-read-btn'),
+        streamingModeBtn: s.getElementById('streaming-mode-btn'),
         speakerPopupBtn: s.getElementById('speaker-popup-btn'),
         speakerSelectPopup: s.getElementById('speaker-select-popup'),
         popupSpeakerList: s.getElementById('popup-speaker-list'),
@@ -188,8 +200,11 @@ function createMySpeechUI(callbacks) {
         speakerSettingsPopup: s.getElementById('speaker-settings-popup'),
         trimSettingsPopup: s.getElementById('trim-settings-popup'),
         separationSettingsPopup: s.getElementById('separation-settings-popup'),
+        // ▼▼▼ [ここから変更] ▼▼▼
+        streamingWaitTimeSlider: s.getElementById('streaming-wait-time-slider'),
+        streamingWaitTimeValue: s.getElementById('val-streaming-wait-time-slider'),
+        // ▲▲▲ [変更はここまで] ▲▲▲
     };
-    // ▲▲▲ [修正はここまで] ▲▲▲
 
     // -----------------------------------------------------------------
     // 2. イベントリスナーを定義し、コールバックを呼び出す
@@ -208,10 +223,10 @@ function createMySpeechUI(callbacks) {
         paramCollapsible.onclick = () => paramCollapsible.parentElement.classList.toggle('is-open');
     }
 
-    dom.textSettingsBtn.onclick = () => callbacks.onTogglePopup('textSettings');
-    dom.speakerSettingsBtn.onclick = () => callbacks.onTogglePopup('speakerSettings');
-    dom.trimSettingsBtn.onclick = () => callbacks.onTogglePopup('trimSettings');
-    dom.separationSettingsBtn.onclick = () => callbacks.onTogglePopup('separationSettings');
+    dom.textSettingsBtn.onclick = (e) => callbacks.onTogglePopup('textSettings', undefined, e.currentTarget);
+    dom.speakerSettingsBtn.onclick = (e) => callbacks.onTogglePopup('speakerSettings', undefined, e.currentTarget);
+    dom.trimSettingsBtn.onclick = (e) => callbacks.onTogglePopup('trimSettings', undefined, e.currentTarget);
+    dom.separationSettingsBtn.onclick = (e) => callbacks.onTogglePopup('separationSettings', undefined, e.currentTarget);
 
     s.querySelectorAll('.settings-popup .popup-close-btn').forEach(btn => {
         const popup = btn.closest('.settings-popup');
@@ -225,11 +240,14 @@ function createMySpeechUI(callbacks) {
     dom.playPauseBtn.onclick = () => callbacks.onPlayPause();
     dom.stopBtn.onclick = () => callbacks.onStop();
     dom.autoReadBtn.onclick = () => callbacks.onAutoReadToggle();
+    dom.streamingModeBtn.onclick = () => callbacks.onToggleStreamingMode();
     dom.getAndReadSimpleBtn.onclick = () => callbacks.onGetAndReadSimple();
     dom.playPauseSimpleBtn.onclick = () => callbacks.onPlayPause();
     dom.autoReadSimpleBtn.onclick = () => callbacks.onAutoReadToggle();
 
-    dom.speakerPopupBtn.onclick = () => callbacks.onSpeakerPopupToggle();
+    dom.speakerPopupBtn.onclick = (e) => callbacks.onSpeakerPopupToggle(undefined, e.currentTarget);
+    dom.currentSpeakerDisplay.onclick = (e) => callbacks.onSpeakerPopupToggle(undefined, e.currentTarget);
+    
     dom.popupSpeakerList.addEventListener('click', (e) => {
         const li = e.target.closest('li');
         if (li && li.dataset.speakerId) {
@@ -246,6 +264,7 @@ function createMySpeechUI(callbacks) {
 
     dom.addSelectorBtn.onclick = () => callbacks.onAddSelector();
     dom.deleteSelectorBtn.onclick = () => callbacks.onDeleteSelector();
+    dom.resetSelectorsBtn.onclick = () => callbacks.onResetSelectors();
     dom.rubyProcessingCheckbox.onchange = (e) => callbacks.onRubyProcessingChange(e.target.checked);
     dom.checkSpeakersBtn.onclick = () => callbacks.onCheckSpeakers();
     dom.engineBtnAivis.onclick = () => callbacks.onEngineSelect('aivis');
@@ -253,6 +272,10 @@ function createMySpeechUI(callbacks) {
     dom.addSpeakerBtn.onclick = () => callbacks.onAddSpeaker();
     dom.deleteSpeakerBtn.onclick = () => callbacks.onDeleteSpeaker();
     dom.parametersGrid.addEventListener('change', (e) => { if (e.target.type === 'range') callbacks.onParamsChange(); });
+    // ▼▼▼ [ここから変更] ▼▼▼
+    dom.streamingWaitTimeSlider.addEventListener('input', () => callbacks.onStreamingWaitTimeChange(false));
+    dom.streamingWaitTimeSlider.addEventListener('change', () => callbacks.onStreamingWaitTimeChange(true));
+    // ▲▲▲ [変更はここまで] ▲▲▲
     dom.enableTrimCheckbox.onchange = () => callbacks.onSaveTrimSettings();
     dom.trimStringsTextarea.addEventListener('change', () => callbacks.onSaveTrimSettings());
     dom.enableSeparationCheckbox.onchange = () => callbacks.onSaveSeparationSettings();
@@ -298,7 +321,6 @@ function createMySpeechUI(callbacks) {
     // -----------------------------------------------------------------
     // 3. UIの見た目を更新する関数群をAPIとして外に公開する
     // -----------------------------------------------------------------
-    // ▼▼▼ [ここから修正] updateCurrentSpeakerDisplayの内部ロジックを変更 ▼▼▼
     const getSpeakerColorClassName = (speakerId, speakerList) => {
         const speakerIndex = speakerList.findIndex(s => s.id === speakerId);
         return speakerIndex === -1 ? 'marker-color-default' : `marker-color-${speakerIndex % COLOR_PALETTE.length}`;
@@ -310,28 +332,40 @@ function createMySpeechUI(callbacks) {
             speakerSettings: { popup: dom.speakerSettingsPopup, button: dom.speakerSettingsBtn },
             trimSettings: { popup: dom.trimSettingsPopup, button: dom.trimSettingsBtn },
             separationSettings: { popup: dom.separationSettingsPopup, button: dom.separationSettingsBtn },
-            speaker: { popup: dom.speakerSelectPopup, button: dom.speakerPopupBtn },
+            speaker: { popup: dom.speakerSelectPopup, buttons: [dom.speakerPopupBtn, dom.currentSpeakerDisplay] },
         }),
 
-        toggleSettingsPopup: (popup, button, show) => {
+        toggleAndPositionPopup: (popup, triggerButton, show) => {
             popup.classList.toggle('hidden', !show);
+
             if (show) {
-                const wrapperRect = dom.wrapper.getBoundingClientRect();
-                const buttonRect = button.getBoundingClientRect();
+                const buttonRect = triggerButton.getBoundingClientRect();
                 
-                let top = buttonRect.bottom - wrapperRect.top;
-                let left = buttonRect.left - wrapperRect.left;
+                let top = buttonRect.bottom;
+                let left = buttonRect.left;
 
                 const popupHeight = popup.offsetHeight;
                 const viewportHeight = window.innerHeight;
-                if (buttonRect.bottom + popupHeight > viewportHeight) {
-                    top = buttonRect.top - wrapperRect.top - popupHeight;
+                if (top + popupHeight > viewportHeight && buttonRect.top - popupHeight > 0) {
+                    top = buttonRect.top - popupHeight;
                 }
 
                 const popupWidth = popup.offsetWidth;
                 const viewportWidth = window.innerWidth;
-                 if (buttonRect.left + popupWidth > viewportWidth) {
-                    left = wrapperRect.width - popupWidth - 20;
+                if (left + popupWidth > viewportWidth) {
+                    left = buttonRect.right - popupWidth;
+                }
+                
+                if (popup === dom.speakerSelectPopup) {
+                    const spaceBelow = window.innerHeight - buttonRect.bottom;
+                    const spaceAbove = buttonRect.top;
+                    const margin = 20;
+                    
+                    if (top === buttonRect.bottom) { // 下に表示する場合
+                        popup.style.maxHeight = `${Math.max(100, spaceBelow - margin)}px`;
+                    } else { // 上に表示する場合
+                        popup.style.maxHeight = `${Math.max(100, spaceAbove - margin)}px`;
+                    }
                 }
                 
                 popup.style.top = `${Math.max(0, top)}px`;
@@ -382,6 +416,14 @@ function createMySpeechUI(callbacks) {
         getNewRuleInfo: () => ({ trigger: dom.ruleTriggerInput.value.trim(), speakerId: dom.ruleSpeakerSelect.value }),
         clearNewRuleInput: () => { dom.ruleTriggerInput.value = ""; },
         isServerRunning: () => !!dom.serverStatusContainer.querySelector('.server-status-indicator.running'),
+        // ▼▼▼ [ここから変更] ▼▼▼
+        getStreamingWaitTimeSliderValue: () => dom.streamingWaitTimeSlider.value,
+        setStreamingWaitTime: (value) => {
+            const numValue = parseFloat(value);
+            dom.streamingWaitTimeSlider.value = numValue;
+            dom.streamingWaitTimeValue.textContent = numValue.toFixed(2);
+        },
+        // ▲▲▲ [変更はここまで] ▲▲▲
 
         remove: () => guiHost.remove(),
         toggleVisibility: () => { guiHost.style.display = (guiHost.style.display === 'none') ? 'block' : 'none'; },
@@ -505,16 +547,18 @@ function createMySpeechUI(callbacks) {
             }
         },
 
-        updateAutoReadButtonsUI: (isEnabled) => {
-            dom.autoReadBtn.classList.toggle('active', isEnabled);
-            dom.autoReadSimpleBtn.classList.toggle('active', isEnabled);
+        updateAutoReadButtonsUI: (isAutoReadEnabled, isStreamingModeEnabled) => {
+            dom.autoReadBtn.classList.toggle('active', isAutoReadEnabled);
+            dom.autoReadSimpleBtn.classList.toggle('active', isAutoReadEnabled);
+            dom.streamingModeBtn.classList.toggle('active', isStreamingModeEnabled);
+            dom.streamingModeBtn.disabled = !isAutoReadEnabled;
         },
         
         updateHighlight: (chunks, defaultSpeakerId, speakerList) => {
             const saveCursor = () => { const sel = shadowRoot.getSelection(); if (sel.rangeCount > 0) { const range = sel.getRangeAt(0); const preRange = range.cloneRange(); preRange.selectNodeContents(dom.textEditor); preRange.setEnd(range.startContainer, range.startOffset); const start = preRange.toString().length; return { start, end: start + range.toString().length }; } return { start: 0, end: 0 }; };
             const restoreCursor = (pos) => { let charIndex = 0; const range = document.createRange(); range.setStart(dom.textEditor, 0); range.collapse(true); const stack = [dom.textEditor]; let node, foundStart = false; while ((node = stack.pop())) { if (node.nodeType === 3) { const nextCharIndex = charIndex + node.length; if (!foundStart && pos.start >= charIndex && pos.start <= nextCharIndex) { range.setStart(node, pos.start - charIndex); foundStart = true; } if (foundStart && pos.end >= charIndex && pos.end <= nextCharIndex) { range.setEnd(node, pos.end - charIndex); break; } charIndex = nextCharIndex; } else { let i = node.childNodes.length; while (i--) { stack.push(node.childNodes[i]); } } } const sel = shadowRoot.getSelection(); sel.removeAllRanges(); sel.addRange(range); };
 
-            const getSpeakerColorClassName = (id, isTrigger) => {
+            const getSpeakerColorClassNameForText = (id, isTrigger) => {
                 const separationEnabled = dom.enableSeparationCheckbox.checked;
                 const readTriggerEnabled = dom.readTriggerCheckbox.checked;
 
@@ -534,7 +578,7 @@ function createMySpeechUI(callbacks) {
             else {
                 chunks.forEach(chunk => {
                     const span = document.createElement('span');
-                    span.className = getSpeakerColorClassName(chunk.speakerId, chunk.isTrigger);
+                    span.className = getSpeakerColorClassNameForText(chunk.speakerId, chunk.isTrigger);
                     span.dataset.speakerId = chunk.speakerId;
                     span.dataset.isTrigger = chunk.isTrigger;
                     span.style.whiteSpace = 'pre-wrap';
@@ -546,7 +590,7 @@ function createMySpeechUI(callbacks) {
         },
 
         redrawTextEditorWithHighlight: (chunks, currentPlaybackIndex, scrollToHighlightEnabled, defaultSpeakerId, speakerList) => {
-            const getSpeakerColorClassName = (id, isTrigger) => {
+            const getSpeakerColorClassNameForText = (id, isTrigger) => {
                 const separationEnabled = dom.enableSeparationCheckbox.checked;
                 const readTriggerEnabled = dom.readTriggerCheckbox.checked;
                 if (!separationEnabled) return 'speaker-color-default';
@@ -562,7 +606,7 @@ function createMySpeechUI(callbacks) {
 
             chunks.forEach(chunk => {
                 const span = document.createElement('span');
-                span.className = getSpeakerColorClassName(chunk.speakerId, chunk.isTrigger);
+                span.className = getSpeakerColorClassNameForText(chunk.speakerId, chunk.isTrigger);
                 span.dataset.speakerId = chunk.speakerId;
                 span.dataset.isTrigger = chunk.isTrigger;
 
@@ -609,10 +653,7 @@ function createMySpeechUI(callbacks) {
         alert: (message) => {
             alert(message);
         },
-
-        toggleSpeakerPopup: (show) => {
-            dom.speakerSelectPopup.classList.toggle('hidden', !show);
-        },
+        
         renderPopupSpeakerList: (speakerList, currentSpeakerId, getSpeakerDisplayName) => {
             dom.popupSpeakerList.innerHTML = speakerList.map(speaker => `
                 <li data-speaker-id="${speaker.id}" class="${speaker.id === currentSpeakerId ? 'selected' : ''}" title="${getSpeakerDisplayName(speaker)}">
@@ -620,11 +661,7 @@ function createMySpeechUI(callbacks) {
                 </li>
             `).join('');
         },
-        getPopupElement: () => dom.speakerSelectPopup,
-        getSpeakerButtonElement: () => dom.speakerPopupBtn,
-        setPopupMaxHeight: (height) => {
-            dom.speakerSelectPopup.style.maxHeight = height;
-        },
+        
         updateCurrentSpeakerDisplay: (speakerName, speakerId, speakerList) => {
             dom.speakerNameText.textContent = speakerName;
             dom.speakerColorIndicator.className = 'speaker-color-indicator'; // Reset classes
@@ -633,7 +670,6 @@ function createMySpeechUI(callbacks) {
                 dom.speakerColorIndicator.classList.add(colorClass);
             }
         },
-        // ▲▲▲ [修正はここまで] ▲▲▲
 
         blurEditor: () => {
             if (shadowRoot.activeElement === dom.textEditor) {

@@ -14,9 +14,11 @@ export const DEFAULT_SPEAKERS = [
  * 一般的なウェブサイトの読み上げ対象を初期設定として提供します。
  */
 export const DEFAULT_SELECTORS = [
-    { name: "GeminiPWA", selector: ".message.model .message-content" },
-    { name: "Google AI Studio", selector: "div.model-prompt-container" },
+    { name: "ChatGPT", selector: "div.flex.max-w-full.flex-col.grow" },
+    { name: "Gemini", selector: ".model-response-text" },
     { name: "Perplexity", selector: ".prose" },
+    { name: "Google AI Studio", selector: "div.model-prompt-container" },
+    { name: "GeminiPWA", selector: ".message.model .message-content" },
     { name: "小説家になろう", selector: ".p-novel__text" },
     { name: "カクヨム", selector: ".widget-episodeBody" }
 ];

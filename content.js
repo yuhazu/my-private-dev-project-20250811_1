@@ -19,9 +19,12 @@
     let rubyProcessingEnabled = true;
     let scrollToHighlightEnabled = false;
     let autoReadEnabled = false;
+    let isStreamingMode = false;
     let getAllTextEnabled = false;
     let isSimpleMode = false;
     let openPopupId = null; 
+    let activePopupTrigger = null; 
+    let streamingWaitTime = 0.3;
 
     let uiState = 'stopped'; // 'stopped', 'playing', 'paused'
     const audioQueue = [];
@@ -33,8 +36,8 @@
 
     let mutationObserver = null;
     let lastAutoReadText = "";
-    let isUpdatePending = false;
     let autoReadFinalityTimer = null; 
+    let isProcessingAutoRead = false;
 
     let currentPlaybackQueue = [];
     let currentPlaybackIndex = 0;
@@ -47,6 +50,21 @@
     // -----------------------------------------------------------------
     // 2. コアロジック (Core Logic) - UI非依存
     // -----------------------------------------------------------------
+
+    function getTextDiff(oldText, newText) {
+        if (!oldText || !newText) {
+            return newText;
+        }
+
+        const oldT = oldText.trim();
+        const newT = newText.trim();
+
+        if (newT.length > oldT.length && newT.startsWith(oldT)) {
+            return newT.substring(oldT.length).trim();
+        }
+        
+        return null;
+    }
 
     function getSpeakerDisplayName(speaker) {
         if (!speaker || !speaker.engine || !engineSettings[speaker.engine]) return speaker ? speaker.name : '';
@@ -248,7 +266,27 @@
 
     function startObserver() {
         if (mutationObserver) mutationObserver.disconnect();
-        const targetNode = document.body;
+
+        const selector = ui.getSelectorValue();
+        let targetNode = document.body;
+
+        if (selector) {
+            try {
+                const elements = document.querySelectorAll(selector);
+                if (elements.length > 0) {
+                    const lastElement = elements[elements.length - 1];
+                    if (lastElement.parentNode && lastElement.parentNode.nodeType === Node.ELEMENT_NODE) {
+                        targetNode = lastElement.parentNode;
+                    }
+                }
+            } catch (e) {
+                console.error("弭 -Yuhazu-: Invalid selector for MutationObserver, falling back to body:", selector, e);
+                targetNode = document.body;
+            }
+        }
+        
+        console.log("弭 -Yuhazu-: MutationObserver is now targeting:", targetNode);
+        
         const observeConfig = { childList: true, characterData: true, subtree: true };
         mutationObserver = new MutationObserver(callbacks.onMutation);
         mutationObserver.observe(targetNode, observeConfig);
@@ -260,6 +298,7 @@
             mutationObserver = null; 
         }
         clearTimeout(autoReadFinalityTimer);
+        isProcessingAutoRead = false;
     }
 
     // -----------------------------------------------------------------
@@ -279,7 +318,9 @@
         },
         onPlayPause: () => {
             if (autoReadEnabled && uiState === 'stopped') {
-                lastAutoReadText = ui.getTextFromEditor().trim();
+                if (!lastAutoReadText) {
+                    lastAutoReadText = ui.getTextFromEditor().trim();
+                }
             }
 
             if (uiState === 'playing') {
@@ -363,8 +404,13 @@
         },
         onStop: (isCompletion = false) => {
             if (uiState === 'stopped' && !isCompletion) return;
+
+            const wasPlaying = uiState === 'playing';
+            const wasPaused = uiState === 'paused';
             
             uiState = 'stopped';
+            isReading = false;
+            isProcessingAutoRead = false;
 
             clearTimeout(autoReadFinalityTimer);
             chrome.runtime.sendMessage({ action: 'stopReading' });
@@ -377,34 +423,43 @@
             }
             
             audioQueue.length = 0;
-            isReading = false;
             isLastItemReceived = false;
             
             resetPlaybackState();
             ui.updateStatus(isCompletion ? "ステータス: 全ての再生が完了しました。" : "ステータス: 停止しました。");
             callbacks.updateAllButtons();
 
-            if (!isCompletion && autoReadEnabled) {
+            if (isCompletion && autoReadEnabled && (wasPlaying || wasPaused)) {
+                const latestText = extractTextFromElements(ui.getSelectorValue(), false);
+                if (latestText && latestText.trim() !== lastAutoReadText) {
+                    callbacks.onMutation();
+                }
+            } else if (!isCompletion && autoReadEnabled) {
                 lastAutoReadText = "";
-                isUpdatePending = false;
-            }
-
-            if (isCompletion && autoReadEnabled && isUpdatePending) {
-                callbacks.onMutation();
             }
         },
         onAutoReadToggle: () => {
             autoReadEnabled = !autoReadEnabled;
-            ui.updateAutoReadButtonsUI(autoReadEnabled);
             if (autoReadEnabled) {
-                isUpdatePending = false;
                 startObserver();
                 callbacks.onMutation(); 
             } else {
+                isStreamingMode = false; 
                 stopObserver();
                 lastAutoReadText = "";
-                isUpdatePending = false;
             }
+            ui.updateAutoReadButtonsUI(autoReadEnabled, isStreamingMode);
+        },
+        onToggleStreamingMode: () => {
+            isStreamingMode = !isStreamingMode;
+            if (isStreamingMode && !autoReadEnabled) {
+                autoReadEnabled = true;
+                startObserver();
+            }
+            lastAutoReadText = "";
+            clearTimeout(autoReadFinalityTimer);
+            isProcessingAutoRead = false;
+            ui.updateAutoReadButtonsUI(autoReadEnabled, isStreamingMode);
         },
         onGetAndReadSimple: () => {
             if (uiState === 'playing' || uiState === 'paused') {
@@ -422,7 +477,8 @@
             chrome.runtime.sendMessage({ action: 'saveLastSelector', data: value });
             if (autoReadEnabled) {
                 lastAutoReadText = "";
-                isUpdatePending = false;
+                clearTimeout(autoReadFinalityTimer);
+                isProcessingAutoRead = false;
                 startObserver();
             }
         },
@@ -448,6 +504,33 @@
             ui.renderSelectorOptions(selectorList, newSelector.selector);
             callbacks.onSelectorChange(newSelector.selector, newSelector.name);
         },
+        
+        onResetSelectors: async () => {
+            try {
+                const updatedSelectors = await chrome.runtime.sendMessage({ action: 'resetSelectors' });
+                if (updatedSelectors && !updatedSelectors.error) {
+                    selectorList = updatedSelectors;
+                    const currentSelectorValue = ui.getSelectorValue();
+                    const selectedOption = selectorList.find(s => s.selector === currentSelectorValue);
+                    
+                    ui.renderSelectorOptions(selectorList, currentSelectorValue);
+                    
+                    if (selectedOption) {
+                        callbacks.onSelectorChange(selectedOption.selector, selectedOption.name);
+                    } else {
+                        const newSelector = selectorList.length > 0 ? selectorList[0] : { selector: '', name: '' };
+                        callbacks.onSelectorChange(newSelector.selector, newSelector.name);
+                    }
+                    ui.alert("テキスト取得対象を初期設定で上書き・追加しました。");
+                } else {
+                    throw new Error(updatedSelectors.error || '不明なエラーが発生しました。');
+                }
+            } catch (e) {
+                console.error("セレクタの初期設定読み込みに失敗:", e);
+                ui.alert(`設定の読み込みに失敗しました:\n${e.message}`);
+            }
+        },
+
         onRubyProcessingChange: (isChecked) => {
             rubyProcessingEnabled = isChecked;
             chrome.runtime.sendMessage({ action: 'saveRubyProcessingSetting', data: rubyProcessingEnabled });
@@ -472,7 +555,6 @@
                 checkServerStatus();
             }
         },
-        // ▼▼▼ [ここから修正] updateCurrentSpeakerDisplayの呼び出しを修正 ▼▼▼
         onSpeakerChange: (speakerId) => {
             currentSpeakerId = speakerId;
             const selectedSpeaker = speakerList.find(s => s.id === currentSpeakerId);
@@ -480,7 +562,6 @@
             if (selectedSpeaker) {
                 selectedEngineId = selectedSpeaker.engine;
                 ui.updateSpeakerInputs(getPureSpeakerName(selectedSpeaker), selectedSpeaker.id, selectedEngineId);
-                // 必要な引数(speakerId, speakerList)をすべて渡すように変更
                 ui.updateCurrentSpeakerDisplay(getSpeakerDisplayName(selectedSpeaker), selectedSpeaker.id, speakerList);
             } else {
                 ui.updateCurrentSpeakerDisplay('---', null, speakerList);
@@ -490,42 +571,34 @@
             ui.renderSpeakerOptions(speakerList, currentSpeakerId, getSpeakerDisplayName);
             callbacks.onTextChange();
         },
-        // ▲▲▲ [修正はここまで] ▲▲▲
-        onTogglePopup: (popupId, forceState) => {
-            const shouldOpen = forceState === undefined ? openPopupId !== popupId : forceState;
+        onTogglePopup: (popupId, forceState, triggerElement) => {
+            const shouldOpen = forceState === undefined ? (openPopupId !== popupId || triggerElement !== activePopupTrigger) : forceState;
             
             if (openPopupId) {
                 const elements = ui.getPopupElements();
-                const targetId = openPopupId === 'speakerPopup' ? 'speaker' : openPopupId;
-                if (elements[targetId]) {
-                    if (targetId === 'speaker') {
-                        ui.toggleSpeakerPopup(false);
-                    } else {
-                        ui.toggleSettingsPopup(elements[targetId].popup, elements[targetId].button, false);
-                    }
+                const target = elements[openPopupId];
+                if (target) {
+                    ui.toggleAndPositionPopup(target.popup, activePopupTrigger, false);
                 }
             }
     
             openPopupId = null;
+            activePopupTrigger = null;
             document.removeEventListener('mousedown', callbacks.onDocumentClick, true);
             
             if (shouldOpen) {
                 openPopupId = popupId;
+                activePopupTrigger = triggerElement;
                 const elements = ui.getPopupElements();
-                const targetId = openPopupId;
+                const target = elements[popupId];
     
-                if (targetId === 'speaker') {
-                    ui.renderPopupSpeakerList(speakerList, currentSpeakerId, getSpeakerDisplayName);
-                    const buttonRect = ui.getSpeakerButtonElement().getBoundingClientRect();
-                    const spaceBelow = window.innerHeight - buttonRect.bottom;
-                    const margin = 20;
-                    const maxHeight = Math.max(100, spaceBelow - margin);
-                    ui.setPopupMaxHeight(maxHeight + 'px');
-                    ui.toggleSpeakerPopup(true);
-                } else if (elements[targetId]) {
-                    ui.toggleSettingsPopup(elements[targetId].popup, elements[targetId].button, true);
+                if (target && target.popup && activePopupTrigger) {
+                    if (popupId === 'speaker') {
+                        ui.renderPopupSpeakerList(speakerList, currentSpeakerId, getSpeakerDisplayName);
+                    }
+                    ui.toggleAndPositionPopup(target.popup, activePopupTrigger, true);
+                    document.addEventListener('mousedown', callbacks.onDocumentClick, true);
                 }
-                document.addEventListener('mousedown', callbacks.onDocumentClick, true);
             }
         },
         
@@ -533,20 +606,23 @@
             if (!openPopupId) return;
     
             const elements = ui.getPopupElements();
-            const targetId = openPopupId;
+            const target = elements[openPopupId];
             
-            const popup = elements[targetId]?.popup;
-            const button = elements[targetId]?.button;
-    
-            if (popup && button) {
+            if (target && target.popup) {
                 const path = event.composedPath();
-                if (!path.includes(popup) && !path.includes(button)) {
+                const isClickInsidePopup = path.includes(target.popup);
+    
+                const triggerButtons = Array.isArray(target.buttons) ? target.buttons : [target.button];
+                const isClickInsideTrigger = triggerButtons.some(btn => btn && path.includes(btn));
+
+                if (!isClickInsidePopup && !isClickInsideTrigger) {
                     callbacks.onTogglePopup(openPopupId, false);
                 }
             }
         },
-        onSpeakerPopupToggle: (forceState) => {
-            callbacks.onTogglePopup('speaker', forceState);
+
+        onSpeakerPopupToggle: (forceState, triggerElement) => {
+            callbacks.onTogglePopup('speaker', forceState, triggerElement);
         },
         onEngineSelect: (engine) => {
             selectedEngineId = engine;
@@ -584,6 +660,15 @@
             const paramsToSave = ui.getCurrentParams();
             chrome.runtime.sendMessage({ action: 'saveLastParams', data: paramsToSave });
         },
+        onStreamingWaitTimeChange: (isFinal) => {
+            const value = ui.getStreamingWaitTimeSliderValue();
+            streamingWaitTime = parseFloat(value);
+            ui.setStreamingWaitTime(streamingWaitTime);
+            
+            if (isFinal) {
+                chrome.runtime.sendMessage({ action: 'saveStreamingWaitTime', data: streamingWaitTime });
+            }
+        },
         onSaveTrimSettings: async () => {
             trimSettings = ui.getTrimSettings();
             await chrome.runtime.sendMessage({ action: 'saveTrimSettings', data: trimSettings });
@@ -617,6 +702,7 @@
         },
         onGetText: () => {
             const selector = ui.getSelectorValue();
+            lastAutoReadText = ""; 
             const combinedText = extractTextFromElements(selector, getAllTextEnabled);
             if (combinedText === null) {
                 ui.alert("指定されたCSSセレクタに一致する要素が見つかりませんでした。");
@@ -628,6 +714,7 @@
         },
         onClearText: () => {
             ui.setTextInEditor('');
+            lastAutoReadText = "";
             callbacks.onTextChange();
         },
         onGetAllTextChange: (isChecked) => {
@@ -657,27 +744,57 @@
                 ui.updateStatus("ステータス: 停止しました。クリック位置から再生待機中です。");
             }
         },
+        // ▼▼▼ [ここから変更] ▼▼▼
         onMutation: () => {
-            if (!autoReadEnabled) return;
-            if (uiState !== 'stopped') {
-                isUpdatePending = true;
+            if (!autoReadEnabled || uiState !== 'stopped') {
                 return;
             }
-            isUpdatePending = false;
-            clearTimeout(autoReadFinalityTimer);
-            autoReadFinalityTimer = setTimeout(() => {
-                const selector = ui.getSelectorValue();
-                const newText = extractTextFromElements(selector, false);
-                const newTextTrimmed = newText ? newText.trim() : "";
-                
-                if (newTextTrimmed && newTextTrimmed !== lastAutoReadText) {
-                    lastAutoReadText = newTextTrimmed;
-                    ui.setTextInEditor(newText);
+
+            if (isStreamingMode) {
+                if (isProcessingAutoRead) {
+                    return;
+                }
+                isProcessingAutoRead = true;
+                const waitTime = streamingWaitTime * 1000;
+                autoReadFinalityTimer = setTimeout(callbacks.processAutoRead, waitTime);
+            } else {
+                clearTimeout(autoReadFinalityTimer);
+                isProcessingAutoRead = true;
+                const waitTime = 1500;
+                autoReadFinalityTimer = setTimeout(callbacks.processAutoRead, waitTime);
+            }
+        },
+        processAutoRead: () => {
+            const currentText = extractTextFromElements(ui.getSelectorValue(), false);
+            const currentTextTrimmed = currentText ? currentText.trim() : "";
+
+            if (isStreamingMode) {
+                const diffText = getTextDiff(lastAutoReadText, currentTextTrimmed);
+                if (diffText) {
+                    lastAutoReadText = currentTextTrimmed;
+                    ui.setTextInEditor(diffText);
                     callbacks.onTextChange();
                     setTimeout(() => callbacks.onPlayPause(), 50);
+                } else if (currentTextTrimmed && currentTextTrimmed !== lastAutoReadText) {
+                    lastAutoReadText = currentTextTrimmed;
+                    ui.setTextInEditor(currentTextTrimmed);
+                    callbacks.onTextChange();
+                    setTimeout(() => callbacks.onPlayPause(), 50);
+                } else {
+                    isProcessingAutoRead = false;
                 }
-            }, 1500);
+            } else {
+                if (currentTextTrimmed && currentTextTrimmed !== lastAutoReadText) {
+                    lastAutoReadText = currentTextTrimmed;
+                    ui.setTextInEditor(currentTextTrimmed);
+                    callbacks.onTextChange();
+                    setTimeout(() => callbacks.onPlayPause(), 50);
+                } else {
+                     isProcessingAutoRead = false;
+                }
+            }
         },
+        // ▲▲▲ [変更はここまで] ▲▲▲
         updateAllButtons: () => {
             const hasText = ui.getTextFromEditor().trim().length > 0;
             const isRunning = ui.isServerRunning();
@@ -861,7 +978,10 @@
             
             ui.createParameterSliders(lastSettings['my-speech-gui-last-params']);
             
-            ui.updateAutoReadButtonsUI(autoReadEnabled);
+            streamingWaitTime = await chrome.runtime.sendMessage({ action: 'loadStreamingWaitTime' });
+            ui.setStreamingWaitTime(streamingWaitTime);
+
+            ui.updateAutoReadButtonsUI(autoReadEnabled, isStreamingMode);
             await checkServerStatus();
         } catch (e) {
             console.error("初期化中にエラー:", e);

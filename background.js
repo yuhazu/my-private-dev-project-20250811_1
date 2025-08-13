@@ -1,4 +1,4 @@
-// background.js (追従スクロールの設定保存/読み込み機能を追加)
+// background.js (最終的な修正案)
 
 import { 
     DEFAULT_SPEAKERS, 
@@ -43,6 +43,9 @@ const STORAGE_KEY_RUBY_PROCESSING = "my-speech-gui-ruby-processing";
 const STORAGE_KEY_GET_ALL_TEXT = "my-speech-gui-get-all-text";
 const STORAGE_KEY_IS_SIMPLE_MODE = "my-speech-gui-is-simple-mode";
 const STORAGE_KEY_SCROLL_TO_HIGHLIGHT = "my-speech-gui-scroll-to-highlight";
+// ▼▼▼ [ここから変更] ▼▼▼
+const STORAGE_KEY_STREAMING_WAIT_TIME = "my-speech-gui-streaming-wait-time";
+// ▲▲▲ [変更はここまで] ▲▲▲
 
 // --- ヘルパー関数 ---
 function blobToDataURL(blob) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = () => reject(reader.error); reader.readAsDataURL(blob); }); }
@@ -137,6 +140,29 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
         case 'saveSelectors': chrome.storage.local.set({ [STORAGE_KEY_SELECTORS]: request.data }, () => sendResponse({ success: true })); break;
         
+        case 'resetSelectors':
+            (async () => {
+                try {
+                    const result = await chrome.storage.local.get([STORAGE_KEY_SELECTORS]);
+                    const currentSelectors = result[STORAGE_KEY_SELECTORS] || [];
+                    
+                    const selectorMap = new Map(currentSelectors.map(item => [item.name, item]));
+
+                    DEFAULT_SELECTORS.forEach(defaultSelector => {
+                        selectorMap.set(defaultSelector.name, defaultSelector);
+                    });
+
+                    const newSelectors = Array.from(selectorMap.values());
+
+                    await chrome.storage.local.set({ [STORAGE_KEY_SELECTORS]: newSelectors });
+                    sendResponse(newSelectors);
+                } catch (error) {
+                    console.error("Error resetting selectors:", error);
+                    sendResponse({ success: false, error: error.message });
+                }
+            })();
+            break;
+        
         case 'loadLastSettings':
             chrome.storage.local.get([
                 STORAGE_KEY_LAST_SPEAKER, 
@@ -190,6 +216,22 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             isAsync = false;
             break;
         
+        // ▼▼▼ [ここから変更] ▼▼▼
+        case 'saveStreamingWaitTime':
+            chrome.storage.local.set({ [STORAGE_KEY_STREAMING_WAIT_TIME]: request.data });
+            isAsync = false;
+            break;
+        
+        case 'loadStreamingWaitTime':
+            chrome.storage.local.get([STORAGE_KEY_STREAMING_WAIT_TIME], (result) => {
+                const waitTime = result[STORAGE_KEY_STREAMING_WAIT_TIME] === undefined 
+                               ? 0.3 
+                               : result[STORAGE_KEY_STREAMING_WAIT_TIME];
+                sendResponse(waitTime);
+            });
+            break;
+        // ▲▲▲ [変更はここまで] ▲▲▲
+
         case 'stopReading': currentJobId = null; isAsync = false; break;
 
         case 'processAndGenerateAudioFromList':
@@ -222,21 +264,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                         const isLast = (i === payload.length - 1);
 
                         if (trimStrings.length > 0) {
-                            // 1. まず末尾の文字を削除する
                             item.text = trimEndChars(item.text, trimStrings);
-
-                            // ▼▼▼ [ここから修正] 2. 次に、テキスト全体が除外文字そのものでないかチェックする ▼▼▼
                             if (trimStrings.includes(item.text.trim())) {
-                                item.text = ""; // テキストが除外文字そのものだった場合、空にする
+                                item.text = ""; 
                             }
-                            // ▲▲▲ [修正はここまで] ▲▲▲
                         }
 
                         if (!item.text.trim()) {
-                            if (isLast) {
-                                 await chrome.tabs.sendMessage(tabId, { type: 'READING_COMPLETE' }).catch(e => console.log(e));
-                            }
-                            continue;
+                           item.text = "　";
                         }
 
                         await chrome.tabs.sendMessage(tabId, { type: 'UPDATE_STATUS', text: `音声生成中: ${item.text.substring(0, 30)}...` }).catch(e => console.log(e));
@@ -253,9 +288,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                     }
                     
                     const wasCancelled = currentJobId !== jobId;
-                    const hasPlayableAudio = payload.some(item => item.text.trim());
-                    if (!wasCancelled && !hasPlayableAudio) {
-                        await chrome.tabs.sendMessage(tabId, { type: 'READING_COMPLETE' }).catch(e => console.log(e));
+                    if (!wasCancelled) {
                     }
                     
                     sendResponse({ success: true, status: wasCancelled ? 'cancelled' : 'completed' });
